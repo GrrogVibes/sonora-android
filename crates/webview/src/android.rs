@@ -179,11 +179,16 @@ impl Window {
                 put(env, &intent, "org.sonora.SCRIPT", script)?;
             }
             env.call_method(
-                &activity,
+                &intent,
                 jni_str!("addFlags"),
                 jni_sig!("(I)Landroid/content/Intent;"),
                 &[JValue::Int(FLAG_ACTIVITY_NEW_TASK)],
-            )?;
+            )
+            .map_err(|error| {
+                env.exception_describe();
+                env.exception_clear();
+                error
+            })?;
             env.call_method(
                 &activity,
                 jni_str!("startActivity"),
