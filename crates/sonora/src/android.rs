@@ -4,6 +4,8 @@
 //! native thread. The platform comes from `gpui_mobile`; the startup that
 //! follows is the one [`crate::launch`] shares with the desktop.
 
+use std::sync::Arc;
+
 use gpui::Application;
 
 use crate::launch::{self, Launch};
@@ -37,8 +39,14 @@ fn android_main(app: android_activity::AndroidApp) {
         }
     };
 
+    // Android has neither an asset source nor an HTTP client unless we give it
+    // one: without them every icon, cover and remote image resolves to nothing.
+    let app = Application::with_platform(shared.into_rc())
+        .with_assets(crate::assets::Assets)
+        .with_http_client(Arc::new(crate::http::Client::new(io.handle())));
+
     launch::start(
-        Application::with_platform(shared.into_rc()),
+        app,
         Launch {
             io,
             args: Vec::new(),
