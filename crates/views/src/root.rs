@@ -1290,6 +1290,10 @@ impl Render for Root {
             cx.set_global(swap);
         }
         let viewport = window.viewport_size();
+        // A phone draws edge to edge, so the system bars have to be padded back
+        // in — otherwise the top of the UI sits under the status bar and cannot
+        // be reached. Zero on the desktop, where the platform reports no insets.
+        let insets = window.insets().effective();
         let reach = f32::from(viewport.width.max(viewport.height));
         let zoom = (zooming * SHELL_ZOOM * reach / 2. >= 0.5).then_some(1. - SHELL_ZOOM * zooming);
         let shell = match self.view {
@@ -1375,6 +1379,10 @@ impl Render for Root {
             .font(self.font(cx))
             .flex_col()
             .size_full()
+            .pt(insets.top)
+            .pb(insets.bottom)
+            .pl(insets.left)
+            .pr(insets.right)
             .when_some(radius, |this, radius| {
                 this.rounded(radius).overflow_hidden()
             })
