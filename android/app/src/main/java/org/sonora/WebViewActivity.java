@@ -160,6 +160,15 @@ public class WebViewActivity extends Activity {
     }
 
     @Override
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         finished = true;
         if (handler != null) {

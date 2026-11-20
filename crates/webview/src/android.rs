@@ -14,6 +14,11 @@ use crate::{Cookie, Target};
 
 const ACTIVITY: &str = "org.sonora.WebViewActivity";
 
+/// `Intent.FLAG_ACTIVITY_NEW_TASK`. `ndk_context` hands us the *Application*,
+/// not an Activity, and Android refuses to start an activity from an
+/// application context without this flag.
+const FLAG_ACTIVITY_NEW_TASK: i32 = 0x1000_0000;
+
 static VM: OnceLock<jni::JavaVM> = OnceLock::new();
 
 /// The process `JavaVM`, taken from the context android-activity published.
@@ -68,6 +73,7 @@ fn class<'local>(env: &mut jni::Env<'local>) -> Result<jni::objects::JClass<'loc
         )
         .and_then(|value| value.l())
         .map_err(|error| {
+            env.exception_describe();
             env.exception_clear();
             error
         })?;
@@ -81,6 +87,7 @@ fn class<'local>(env: &mut jni::Env<'local>) -> Result<jni::objects::JClass<'loc
         )
         .and_then(|value| value.l())
         .map_err(|error| {
+            env.exception_describe();
             env.exception_clear();
             error
         })?;
@@ -173,11 +180,20 @@ impl Window {
             }
             env.call_method(
                 &activity,
+                jni_str!("addFlags"),
+                jni_sig!("(I)Landroid/content/Intent;"),
+                &[JValue::Int(FLAG_ACTIVITY_NEW_TASK)],
+            )?;
+            env.call_method(
+                &activity,
                 jni_str!("startActivity"),
                 jni_sig!("(Landroid/content/Intent;)V"),
                 &[JValue::Object(&intent)],
             )
             .map_err(|error| {
+                // Print the Java stack trace before clearing: the jni error
+                // string alone is only "java exception was thrown".
+                env.exception_describe();
                 env.exception_clear();
                 error
             })?;
