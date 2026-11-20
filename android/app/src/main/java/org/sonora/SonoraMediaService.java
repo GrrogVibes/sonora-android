@@ -69,6 +69,10 @@ public class SonoraMediaService extends Service {
                 CHANNEL, "Playback", NotificationManager.IMPORTANCE_LOW));
 
         session = new MediaSessionCompat(this, "Sonora");
+        // Without these flags the session ignores media-button keys, which is
+        // exactly how next/previous keep working while play/pause goes nowhere.
+        session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
+                | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
         session.setCallback(new MediaSessionCompat.Callback() {
             @Override public void onPlay() { nativeMediaAction(MEDIA_PLAY); }
             @Override public void onPause() { nativeMediaAction(MEDIA_PAUSE); }
@@ -229,4 +233,10 @@ public class SonoraMediaService extends Service {
     private static native void nativeMediaAction(int action);
 
     private static native void nativeMediaSeek(long positionMs);
+
+    /**
+     * A media key the activity saw. Some headsets deliver play/pause only to the
+     * focused activity rather than through the session.
+     */
+    static native void nativeMediaKey(int keyCode);
 }

@@ -315,6 +315,29 @@ pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaAction(
     commands.send(command).ok();
 }
 
+/// A media key the activity reports. Runs on the Android main thread.
+///
+/// # Safety
+/// Called by JNI with a valid call frame.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaKey(
+    _env: *mut c_void,
+    _class: *mut c_void,
+    key_code: i32,
+) {
+    let Some(commands) = COMMANDS.get() else {
+        return;
+    };
+    let command = match key_code {
+        // KEYCODE_MEDIA_PLAY_PAUSE and KEYCODE_HEADSETHOOK both mean "toggle".
+        85 | 79 => Command::Toggle,
+        126 => Command::Play,
+        127 => Command::Pause,
+        _ => return,
+    };
+    commands.send(command).ok();
+}
+
 /// A seek the service reports, in milliseconds.
 ///
 /// # Safety

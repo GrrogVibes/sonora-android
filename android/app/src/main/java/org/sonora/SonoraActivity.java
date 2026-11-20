@@ -6,6 +6,7 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 
 /**
  * Hosts the Rust UI in a NativeActivity.
@@ -19,6 +20,25 @@ import android.util.Log;
 public class SonoraActivity extends dev.gpui.mobile.GpuiInputActivity {
 
     private static final String TAG = "SonoraActivity";
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // Some headsets deliver play/pause to the focused activity instead of the
+        // media session. Forward those, and let everything else reach the app.
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                case KeyEvent.KEYCODE_MEDIA_PLAY:
+                case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                case KeyEvent.KEYCODE_HEADSETHOOK:
+                    SonoraMediaService.nativeMediaKey(event.getKeyCode());
+                    return true;
+                default:
+                    break;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
