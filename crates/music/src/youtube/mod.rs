@@ -198,7 +198,10 @@ impl YouTubeProvider {
 
         let found = accounts::list(&cookies).await;
         let account = match found.len() {
-            0 => anyhow::bail!("cookies were not accepted; sign in to the browser first"),
+            0 => anyhow::bail!(
+                "cookies were not accepted; sign in to the browser first (sent: {})",
+                auth::names(&cookies)
+            ),
             1 => &found[0],
             _ => pick(&found, prompt, input).await?,
         };

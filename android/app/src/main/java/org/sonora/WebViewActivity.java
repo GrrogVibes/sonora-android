@@ -45,6 +45,7 @@ public class WebViewActivity extends Activity {
     private WebView webView;
     private Handler handler;
     private String pageUrl;
+    private String domain = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,6 +61,10 @@ public class WebViewActivity extends Activity {
         String agent = intent.getStringExtra(EXTRA_AGENT);
         String script = intent.getStringExtra(EXTRA_SCRIPT);
         pageUrl = url == null ? "" : url;
+        domain = intent.getStringExtra(EXTRA_DOMAIN);
+        if (domain == null) {
+            domain = "";
+        }
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -141,9 +146,37 @@ public class WebViewActivity extends Activity {
         if (isFinishing() || isDestroyed()) {
             return;
         }
-        String cookie = CookieManager.getInstance().getCookie(pageUrl);
-        currentCookies = cookie == null ? "" : cookie;
+        // `getCookie(url)` answers with the cookies that url would be sent, so a
+        // single query on the sign-in page misses the ones set on the provider's
+        // own domain. Ask every URL that could hold them and merge.
+        java.util.LinkedHashSet<String> pairs = new java.util.LinkedHashSet<>();
+        for (String url : candidates()) {
+            String cookie = CookieManager.getInstance().getCookie(url);
+            if (cookie == null) {
+                continue;
+            }
+            for (String pair : cookie.split(";")) {
+                String trimmed = pair.trim();
+                if (!trimmed.isEmpty()) {
+                    pairs.add(trimmed);
+                }
+            }
+        }
+        currentCookies = String.join("; ", pairs);
         handler.postDelayed(this::tick, 250);
+    }
+
+    private java.util.List<String> candidates() {
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        if (pageUrl != null && !pageUrl.isEmpty()) {
+            urls.add(pageUrl);
+        }
+        String bare = domain.replaceFirst("^\\.", "");
+        if (!bare.isEmpty()) {
+            urls.add("https://" + bare + "/");
+            urls.add("https://www." + bare + "/");
+        }
+        return urls;
     }
 
     private void load(String url) {

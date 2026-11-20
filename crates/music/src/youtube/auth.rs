@@ -1,5 +1,17 @@
 use anyhow::{Result, bail};
 
+/// The cookie names in a header, for a diagnostic that must not leak their values.
+pub(crate) fn names(header: &str) -> String {
+    let mut names: Vec<&str> = header
+        .split(';')
+        .filter_map(|pair| pair.trim().split_once('='))
+        .map(|(name, _)| name)
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names.join(", ")
+}
+
 /// The cookies that tell a signed-in header from a guest one.
 pub(crate) const PROOF: &[&str] = &["SAPISID", "__Secure-3PAPISID"];
 
