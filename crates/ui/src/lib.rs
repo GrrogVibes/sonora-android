@@ -1,5 +1,6 @@
 mod arrow_ring;
 mod artwork;
+pub use artwork::last_error;
 mod button;
 mod card;
 mod checkbox;

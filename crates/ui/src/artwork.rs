@@ -97,6 +97,22 @@ enum ArtworkAssetLoader {}
 
 type ArtworkResourceLoader = AssetLogger<ArtworkAssetLoader>;
 
+/// The last cover that failed to load. A phone has no logcat to hand back, so
+/// the failure is kept here and the root draws it for as long as it is the
+/// newest one.
+static LAST_ERROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// The newest cover failure, if any. Diagnostics only.
+pub fn last_error() -> Option<String> {
+    LAST_ERROR.lock().ok().and_then(|held| held.clone())
+}
+
+fn record(error: &ImageCacheError) {
+    if let Ok(mut held) = LAST_ERROR.lock() {
+        *held = Some(error.to_string());
+    }
+}
+
 /// Reads the encoded bytes of a cover. Nothing holds on to them once the decode has
 /// landed, because the HTTP disk cache makes a second read cheap.
 fn fetch(
@@ -157,7 +173,13 @@ impl Asset for ArtworkAssetLoader {
         let bytes = fetch(source.resource, cx);
 
         async move {
-            let bytes = bytes.await?;
+            let bytes = match bytes.await {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    record(&error);
+                    return Err(error);
+                }
+            };
 
             let Ok(format) = image::guess_format(&bytes) else {
                 let image = svg_renderer.render_single_frame(&bytes, 1.0)?;
@@ -174,7 +196,11 @@ impl Asset for ArtworkAssetLoader {
                 Ok(Decoded { image, palette })
             })
             .await
-            .unwrap_or_else(|| Err(ImageCacheError::Asset("artwork decoder stopped".into())))
+            .unwrap_or_else(|| {
+                let error = ImageCacheError::Asset("artwork decoder stopped".into());
+                record(&error);
+                Err(error)
+            })
         }
     }
 }
