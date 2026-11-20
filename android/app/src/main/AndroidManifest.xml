@@ -43,6 +43,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The throwaway browser window cookie sign-ins and PO tokens use. -->
+        <activity
+            android:name="org.sonora.WebViewActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|density"
+            android:exported="false"
+            android:label="Sonora"
+            android:theme="@style/SonoraTheme" />
     </application>
 
 </manifest>

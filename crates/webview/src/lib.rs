@@ -40,9 +40,24 @@ use linux as platform;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 mod native;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(target_os = "android")]
+use android as platform;
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "android"
+)))]
 mod unsupported;
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "android"
+)))]
 use unsupported as platform;
 
 /// What a window is asked to do. `url` opens first. `landing` scopes cookie reads on platforms
