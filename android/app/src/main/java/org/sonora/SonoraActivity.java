@@ -3,6 +3,7 @@ package org.sonora;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -24,5 +25,13 @@ public class SonoraActivity extends dev.gpui.mobile.GpuiInputActivity {
         // Volume keys adjust the media stream, not the ringer.
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
         super.onCreate(savedInstanceState);
+
+        // The media notification is pointless without this on API 33+.
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1);
+        }
     }
 }

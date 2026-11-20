@@ -51,6 +51,12 @@
             android:exported="false"
             android:label="Sonora"
             android:theme="@style/SonoraTheme" />
+
+        <!-- The always-on media notification; its type must be mediaPlayback. -->
+        <service
+            android:name="org.sonora.SonoraMediaService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 
 </manifest>

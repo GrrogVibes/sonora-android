@@ -44,6 +44,10 @@ libc.workspace = true
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 souvlaki.workspace = true
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22"
+ndk-context = "0.1"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
 
