@@ -31,6 +31,12 @@ fn android_main(app: android_activity::AndroidApp) {
 
     publish_android_dirs();
 
+    // reqwest 0.13 verifies TLS through `rustls-platform-verifier`, which on
+    // Android must be given the JVM before any request runs; without it the
+    // first HTTPS call panics with "Expect rustls-platform-verifier to be
+    // initialized" and every cover silently fails.
+    init_platform_verifier();
+
     // reqwest is built with `rustls-no-provider`, so rustls cannot pick a crypto
     // provider by itself. Without this every HTTPS request made through
     // `http::Client` — every cover and remote image — fails silently, which is
@@ -60,6 +66,32 @@ fn android_main(app: android_activity::AndroidApp) {
             args: Vec::new(),
         },
     );
+}
+
+/// Gives `rustls-platform-verifier` the JVM handles it needs on Android.
+///
+/// Must run once, before any networking. The Kotlin half of the verifier ships
+/// in the `rustls-platform-verifier` Gradle artifact.
+fn init_platform_verifier() {
+    let context = ndk_context::android_context();
+    let (vm, activity) = (context.vm(), context.context());
+    if vm.is_null() || activity.is_null() {
+        log::warn!("verifier: no Java VM or context to initialise with");
+        return;
+    }
+    // SAFETY: `ndk_context` owns both pointers for the life of the process.
+    // The `JavaVM` wrapper is forgotten afterwards so its `Drop` cannot destroy
+    // the real VM.
+    let vm = unsafe { jni::JavaVM::from_raw(vm as *mut jni::sys::JavaVM) };
+    let result = vm.attach_current_thread(|env: &mut jni::Env| -> jni::errors::Result<()> {
+        // SAFETY: the context is a global reference to the app's own context.
+        let context = unsafe { jni::objects::JObject::from_raw(env, activity as jni::sys::jobject) };
+        rustls_platform_verifier::android::init_with_env(env, context)
+    });
+    std::mem::forget(vm);
+    if let Err(error) = result {
+        log::warn!("verifier: cannot initialise rustls-platform-verifier: {error}");
+    }
 }
 
 /// Android has no `$HOME` and no XDG variables, so `dirs` resolves every path to

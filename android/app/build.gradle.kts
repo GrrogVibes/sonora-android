@@ -66,4 +66,7 @@ dependencies {
     implementation("androidx.core:core:1.13.1")
     // MediaSessionCompat: the always-on notification and the hardware media keys.
     implementation("androidx.media:media:1.7.1")
+    // reqwest 0.13 verifies TLS through rustls-platform-verifier. The version
+    // must match `rustls-platform-verifier-android` in Cargo.lock (0.2.0).
+    implementation("org.rustls:rustls-platform-verifier:0.2.0")
 }
