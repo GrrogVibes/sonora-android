@@ -50,13 +50,16 @@ impl SettingsView {
         if !self.settings.read(cx).server_side_decorations() {
             slots.push(Slot::WindowRounding);
         }
-        #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
+        #[cfg(windows)]
         let slots = vec![
             Slot::Decorations,
             Slot::Side,
             Slot::TrafficLights,
             Slot::WindowRounding,
         ];
+        // A phone has no window frame to configure.
+        #[cfg(target_os = "android")]
+        let slots = Vec::new();
         #[cfg(target_os = "macos")]
         let slots = vec![Slot::Decorations, Slot::WindowRounding];
         slots

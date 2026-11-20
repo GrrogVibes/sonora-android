@@ -70,6 +70,12 @@ tokio-tungstenite.workspace = true
 widevine.workspace = true
 ytmusic.workspace = true
 
+[target.'cfg(target_os = "android")'.dependencies]
+# ytmusic drives QuickJS through rquickjs, whose published bindings do not cover
+# Android — bind at build time there instead. Declared only for Android so the
+# desktop build keeps using the pregenerated bindings.
+rquickjs-sys = { version = "0.12.2", features = ["bindgen"] }
+
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 

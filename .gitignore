@@ -11,3 +11,4 @@ __pycache__/
 /flatpak/flatpak
 /.flatpak-builder
 vendor/gpui/
+android/app/src/main/jniLibs/

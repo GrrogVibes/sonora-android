@@ -12,13 +12,17 @@ use crate::{Cover, Io, Playback, PlaybackState, Queue, Repeat, Sonora, join};
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod mpris;
-#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod souvlaki;
+#[cfg(target_os = "android")]
+mod android;
 
-#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use self::souvlaki::Controls;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 use mpris::Controls;
+#[cfg(target_os = "android")]
+use self::android::Controls;
 
 const BUS_NAME: &str = "sonora";
 const DISPLAY_NAME: &str = "Sonora";

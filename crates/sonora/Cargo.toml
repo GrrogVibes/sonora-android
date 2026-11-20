@@ -4,6 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "sonora"
+# Android loads `libsonora.so` through NativeActivity; the rlib keeps the
+# desktop binary and the tests linking against the same code.
+crate-type = ["cdylib", "rlib"]
+
 [features]
 # the gpui frame overlay and repaint wash, off in normal builds
 profiler = ["gpui/profiler"]
@@ -16,11 +22,9 @@ runtime-shaders = ["gpui_platform/runtime_shaders"]
 anyhow.workspace = true
 cli.workspace = true
 dirs.workspace = true
-env_logger.workspace = true
 futures.workspace = true
 log.workspace = true
 gpui.workspace = true
-gpui_platform.workspace = true
 i18n.workspace = true
 icons.workspace = true
 music = { workspace = true, features = ["widevine"] }
@@ -30,13 +34,24 @@ input.workspace = true
 router.workspace = true
 ui.workspace = true
 views.workspace = true
-webview.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 sha2.workspace = true
 tokio = { workspace = true, features = ["rt"] }
-interprocess.workspace = true
 image.workspace = true
+
+# Desktop-only: the CLI console, the file logger, the gpui_platform application
+# and the single-instance socket. None of them exist on Android.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+env_logger.workspace = true
+gpui_platform.workspace = true
+interprocess.workspace = true
+webview.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+gpui-mobile.workspace = true
+android-activity = { version = "0.6", features = ["native-activity"] }
+android_logger = "0.15"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc.workspace = true
