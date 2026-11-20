@@ -31,6 +31,14 @@ fn android_main(app: android_activity::AndroidApp) {
 
     publish_android_dirs();
 
+    // reqwest is built with `rustls-no-provider`, so rustls cannot pick a crypto
+    // provider by itself. Without this every HTTPS request made through
+    // `http::Client` — every cover and remote image — fails silently, which is
+    // exactly how a phone ended up with no artwork at all.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+
     let io = match state::Io::new() {
         Ok(io) => io,
         Err(error) => {
