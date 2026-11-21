@@ -199,9 +199,10 @@ pub struct Root {
     /// The font the window is set in and the name it was built from, rebuilt only when the
     /// chosen font changes since the root renders every frame anything below it animates.
     font: Option<(String, Font)>,
-    /// The newest cover failure, drawn on screen: a phone has no logcat to hand back.
+    /// The newest cover failure. Recording only: nothing draws it any more.
+    #[cfg(target_os = "android")]
+    #[allow(dead_code)]
     art_error: Option<String>,
-    media_event: Option<String>,
     #[cfg(target_os = "windows")]
     rounded: Option<ui::Rounding>,
     /// The corners and traffic-light position last handed to AppKit.
@@ -433,8 +434,8 @@ impl Root {
             toasts: cx.new(ToastStack::new),
             background: None,
             font: None,
+            #[cfg(target_os = "android")]
             art_error: None,
-            media_event: None,
             #[cfg(target_os = "windows")]
             rounded: None,
             #[cfg(target_os = "macos")]
@@ -1474,34 +1475,8 @@ impl Render for Root {
             .when(!show_sign_in, |this| this.child(shell));
         // A closed menu or dialog fades out here, over everything else in the window.
         let root = root.child(ui::lingers());
-        self.art_error = ui::last_error();
-        self.media_event = state::media_event::last();
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         let root = root.child(WindowFrame::new());
-        let root = root.when_some(self.media_event.clone(), |this, event| {
-            this.child(
-                div()
-                    .absolute()
-                    .top_6()
-                    .right_4()
-                    .max_w(gpui::px(340.))
-                    .text_size(gpui::px(11.))
-                    .text_color(theme.foreground)
-                    .child(SharedString::from(event)),
-            )
-        });
-        let root = root.when_some(self.art_error.clone(), |this, error| {
-            this.child(
-                div()
-                    .absolute()
-                    .top_6()
-                    .left_4()
-                    .max_w(gpui::px(340.))
-                    .text_size(gpui::px(11.))
-                    .text_color(theme.foreground)
-                    .child(SharedString::from(error)),
-            )
-        });
         root
     }
 }
