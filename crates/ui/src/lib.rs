@@ -59,6 +59,8 @@ mod theme;
 mod time;
 mod toast;
 mod tooltip;
+mod touch;
+pub use touch::touch_drag_hit;
 mod traffic_light_controls;
 mod unfold;
 mod vacancy;

@@ -666,9 +666,12 @@ impl Render for PlayerBar {
                         .items_center()
                         .gap_2()
                         .w_full()
-                        .child(self.now_playing(show_track, window, cx))
+                        .child(self.artwork(window, cx))
                         .child(transport(&self.playback, false, cx)),
                 )
+                // A phone held upright has no room beside the transport, so the
+                // title gets a line of its own instead of disappearing.
+                .child(self.track_details(false, cx).w_full())
                 .child(
                     div()
                         .flex()

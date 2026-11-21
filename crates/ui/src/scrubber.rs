@@ -279,8 +279,7 @@ impl RenderOnce for Scrubber {
             }
         };
 
-        let touch_state = state.clone();
-        let touch_release = on_release.clone();
+        let area = crate::touch::TouchArea::new();
         let dragged = {
             let on_move = on_move.clone();
             let mine = id.clone();
@@ -521,53 +520,11 @@ impl RenderOnce for Scrubber {
             )
             .child(
                 canvas(
-                    move |b, _, _| bounds.set(b),
-                    {
-                        let state = touch_state.clone();
-                        let at = at.clone();
-                        let on_move = on_move.clone();
-                        let on_release = touch_release.clone();
-                        let held = std::rc::Rc::new(std::cell::Cell::new(false));
-                        move |_, _, window, cx| {
-                            // A finger drag is not a mouse drag, so the slider listens
-                            // for the touch itself and claims it only inside its own
-                            // bounds; everything else keeps scrolling.
-                            window.on_mouse_event(
-                                move |event: &gpui::TouchDragEvent, phase, window, cx| {
-                                    if phase != gpui::DispatchPhase::Bubble {
-                                        return;
-                                    }
-                                    match event.phase {
-                                        gpui::TouchPhase::Started => {
-                                            if state.bounds().contains(&event.position) {
-                                                window.prevent_default();
-                                                held.set(true);
-                                                if let Some(handler) = on_move.as_ref() {
-                                                    handler(&at(&state, event.position), window, cx);
-                                                }
-                                            }
-                                        }
-                                        gpui::TouchPhase::Moved => {
-                                            if held.get() {
-                                                if let Some(handler) = on_move.as_ref() {
-                                                    handler(&at(&state, event.position), window, cx);
-                                                }
-                                            }
-                                        }
-                                        gpui::TouchPhase::Ended
-                                        | gpui::TouchPhase::Cancelled => {
-                                            if held.get() {
-                                                held.set(false);
-                                                if let Some(handler) = on_release.as_ref() {
-                                                    handler(&MouseUpEvent::default(), window, cx);
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                            );
-                        }
+                    move |area_bounds, _, _| {
+                        bounds.set(area_bounds);
+                        area.set(area_bounds);
                     },
+                    |_, _, _, _| {},
                 )
                 .absolute()
                 .size_full(),
