@@ -271,7 +271,6 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                     div().h(px(VOLUME_RISE)).flex().child(
                         Scrubber::new(&volume.slider, level)
                             .vertical()
-                            .tap_only()
                             .name(t!("equalizer-status-volume"))
                             .value(percent(level))
                             .colors(theme.progress_bar, empty, theme.foreground)
