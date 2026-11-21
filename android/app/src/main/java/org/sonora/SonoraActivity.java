@@ -1,12 +1,9 @@
 package org.sonora;
 
-import android.content.Context;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.KeyEvent;
 
 /**
@@ -20,29 +17,14 @@ import android.view.KeyEvent;
  */
 public class SonoraActivity extends dev.gpui.mobile.GpuiInputActivity {
 
-    private static final String TAG = "SonoraActivity";
-
-    /** A volume-key trace line for the on-screen diagnostic. */
-    static native void nativeVolumeTrace(int keyCode, int volume, int max);
-
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        int code = event.getKeyCode();
-        // The volume keys are the "main" control: they move the system media
-        // stream, not Sonora's own slider. Done here as well as through
-        // setVolumeControlStream, because a NativeActivity window does not
-        // always get them.
-        if (event.getAction() == KeyEvent.ACTION_DOWN
-                && (code == KeyEvent.KEYCODE_VOLUME_UP
-                    || code == KeyEvent.KEYCODE_VOLUME_DOWN)) {
-            adjustVolume(code);
-            return true;
-        }
-
-        // Some headsets deliver play/pause to the focused activity instead of the
-        // media session. Forward those, and let everything else reach the app.
+        // The volume keys are the system's "main" control and are adjusted by
+        // gpui-mobile's volume_key_android, which sees the native input queue a
+        // NativeActivity feeds. Intercepting them here as well would step the
+        // volume twice.
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            switch (code) {
+            switch (event.getKeyCode()) {
                 case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                 case KeyEvent.KEYCODE_MEDIA_PLAY:
                 case KeyEvent.KEYCODE_MEDIA_PAUSE:
@@ -50,17 +32,17 @@ public class SonoraActivity extends dev.gpui.mobile.GpuiInputActivity {
                 case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
                 case KeyEvent.KEYCODE_MEDIA_STOP:
                 case KeyEvent.KEYCODE_HEADSETHOOK:
-                    SonoraMediaService.nativeMediaTrace(code);
+                    SonoraMediaService.nativeMediaTrace(event.getKeyCode());
                     break;
                 default:
                     break;
             }
-            switch (code) {
+            switch (event.getKeyCode()) {
                 case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                 case KeyEvent.KEYCODE_MEDIA_PLAY:
                 case KeyEvent.KEYCODE_MEDIA_PAUSE:
                 case KeyEvent.KEYCODE_HEADSETHOOK:
-                    SonoraMediaService.nativeMediaKey(code);
+                    SonoraMediaService.nativeMediaKey(event.getKeyCode());
                     return true;
                 default:
                     break;
@@ -70,47 +52,11 @@ public class SonoraActivity extends dev.gpui.mobile.GpuiInputActivity {
     }
 
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyKeyIsVolume(keyCode)) {
-            adjustVolume(keyCode);
-            return true;
-        }
-        return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (keyKeyIsVolume(keyCode)) {
-            return true;
-        }
-        return super.onKeyUp(keyCode, event);
-    }
-
-    private static boolean keyKeyIsVolume(int keyCode) {
-        return keyCode == KeyEvent.KEYCODE_VOLUME_UP
-                || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN;
-    }
-
-    /** Moves the system media stream and leaves a trace of what it did. */
-    private void adjustVolume(int keyCode) {
-        AudioManager audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        if (audio == null) {
-            return;
-        }
-        nativeVolumeTrace(keyCode, audio.getStreamVolume(AudioManager.STREAM_MUSIC),
-                audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
-        audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
-                keyCode == KeyEvent.KEYCODE_VOLUME_UP
-                        ? AudioManager.ADJUST_RAISE
-                        : AudioManager.ADJUST_LOWER,
-                AudioManager.FLAG_SHOW_UI);
-    }
-
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Volume keys adjust the media stream, not the ringer. Done after
-        // super.onCreate so the window it is tied to already exists.
+        // The volume keys belong to the media stream, not the ringer. The
+        // stream itself is moved on the native side, which is where a
+        // NativeActivity's key events actually arrive.
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
         getWindow().setVolumeControlStream(AudioManager.STREAM_MUSIC);
 
