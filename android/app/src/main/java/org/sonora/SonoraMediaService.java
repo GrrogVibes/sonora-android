@@ -5,8 +5,12 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
@@ -88,14 +92,38 @@ public class SonoraMediaService extends Service {
 
             @Override
             public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
-                // Anything that arrives as a media-button intent is worth seeing:
-                // a headset whose play/pause never shows up as a key event would
-                // land here instead.
+                // Next/previous arrive here as a media-button intent, so
+                // play/pause may too. Handle the key ourselves rather than
+                // trusting the compat layer's toggle logic.
                 nativeMediaTrace(9999);
-                return super.onMediaButtonEvent(mediaButtonIntent);
+                if (mediaButtonIntent == null) {
+                    return super.onMediaButtonEvent(mediaButtonIntent);
+                }
+                KeyEvent key = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                if (key == null) {
+                    return super.onMediaButtonEvent(mediaButtonIntent);
+                }
+                nativeMediaTrace(key.getKeyCode());
+                if (key.getAction() == KeyEvent.ACTION_DOWN) {
+                    nativeMediaKey(key.getKeyCode());
+                }
+                return true;
             }
         });
         session.setActive(true);
+
+        // Take audio focus: without it Android may route the play/pause key to a
+        // different app's session, while still letting next/previous through.
+        AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audio != null) {
+            AudioAttributes attributes = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build();
+            audio.requestAudioFocus(new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(attributes)
+                    .build());
+        }
     }
 
     @Override

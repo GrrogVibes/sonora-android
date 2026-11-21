@@ -347,6 +347,9 @@ pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaKey(
         85 | 79 => Command::Toggle,
         126 => Command::Play,
         127 => Command::Pause,
+        88 => Command::Next,
+        87 => Command::Previous,
+        130 => Command::Pause,
         _ => return,
     };
     crate::media_event::record(format!("key {key_code}"));
