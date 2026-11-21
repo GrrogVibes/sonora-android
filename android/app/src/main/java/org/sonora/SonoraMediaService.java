@@ -55,6 +55,7 @@ public class SonoraMediaService extends Service {
     private static SonoraMediaService current;
 
     private MediaSessionCompat session;
+    private AudioFocusRequest focusRequest;
     private String title = "";
     private String artist = "";
     private String album = "";
@@ -111,19 +112,6 @@ public class SonoraMediaService extends Service {
             }
         });
         session.setActive(true);
-
-        // Take audio focus: without it Android may route the play/pause key to a
-        // different app's session, while still letting next/previous through.
-        AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
-        if (audio != null) {
-            AudioAttributes attributes = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build();
-            audio.requestAudioFocus(new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                    .setAudioAttributes(attributes)
-                    .build());
-        }
     }
 
     @Override
@@ -131,6 +119,7 @@ public class SonoraMediaService extends Service {
         String action = intent == null ? "" : intent.getAction();
 
         if (ACTION_STOP.equals(action)) {
+            abandonFocus();
             stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
@@ -161,9 +150,50 @@ public class SonoraMediaService extends Service {
 
         session.setPlaybackState(playbackState());
         session.setMetadata(metadata());
+        if (playing) {
+            requestFocus();
+        } else {
+            abandonFocus();
+        }
         showNotification();
         loadCover();
         return START_STICKY;
+    }
+
+    /**
+     * Takes the media focus, and stops when another app takes it away: two media
+     * apps are not allowed to play at once, so Sonora yields instead of fighting
+     * over the stream.
+     */
+    private void requestFocus() {
+        AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audio == null) {
+            return;
+        }
+        if (focusRequest == null) {
+            AudioAttributes attributes = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build();
+            focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(attributes)
+                    .setOnAudioFocusChangeListener(change -> {
+                        if (change == AudioManager.AUDIOFOCUS_LOSS
+                                || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
+                                || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+                            nativeMediaAction(MEDIA_PAUSE);
+                        }
+                    })
+                    .build();
+        }
+        audio.requestAudioFocus(focusRequest);
+    }
+
+    private void abandonFocus() {
+        AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audio != null && focusRequest != null) {
+            audio.abandonAudioFocusRequest(focusRequest);
+        }
     }
 
     private void showNotification() {
@@ -263,6 +293,7 @@ public class SonoraMediaService extends Service {
 
     @Override
     public void onDestroy() {
+        abandonFocus();
         if (session != null) {
             session.setActive(false);
             session.release();
