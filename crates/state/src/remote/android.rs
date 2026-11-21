@@ -312,6 +312,7 @@ pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaAction(
         MEDIA_PREVIOUS => Command::Previous,
         _ => return,
     };
+    crate::media_event::record(format!("action {action}"));
     commands.send(command).ok();
 }
 
@@ -335,6 +336,7 @@ pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaKey(
         127 => Command::Pause,
         _ => return,
     };
+    crate::media_event::record(format!("key {key_code}"));
     commands.send(command).ok();
 }
 

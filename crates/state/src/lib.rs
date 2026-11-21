@@ -16,6 +16,7 @@ mod links;
 mod listening;
 mod logging;
 mod lyrics;
+pub mod media_event;
 mod mosaic;
 mod network;
 mod outputs;

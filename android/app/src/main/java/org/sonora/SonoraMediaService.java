@@ -14,6 +14,7 @@ import android.os.IBinder;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
+import android.view.KeyEvent;
 import androidx.core.app.NotificationCompat;
 
 import java.net.URL;
@@ -73,6 +74,10 @@ public class SonoraMediaService extends Service {
         // exactly how next/previous keep working while play/pause goes nowhere.
         session.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
                 | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
+        // Some stacks only deliver media buttons to a declared receiver.
+        Intent button = new Intent(Intent.ACTION_MEDIA_BUTTON, null, this, SonoraMediaService.class);
+        session.setMediaButtonReceiver(PendingIntent.getService(this, 0, button,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         session.setCallback(new MediaSessionCompat.Callback() {
             @Override public void onPlay() { nativeMediaAction(MEDIA_PLAY); }
             @Override public void onPause() { nativeMediaAction(MEDIA_PAUSE); }
@@ -92,6 +97,14 @@ public class SonoraMediaService extends Service {
             stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
+        }
+        // A media button delivered through the declared receiver.
+        if (Intent.ACTION_MEDIA_BUTTON.equals(action)) {
+            KeyEvent key = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+            if (key != null && key.getAction() == KeyEvent.ACTION_DOWN) {
+                nativeMediaKey(key.getKeyCode());
+            }
+            return START_STICKY;
         }
         if (ACTION_PLAY.equals(action)) { nativeMediaAction(MEDIA_PLAY); return START_STICKY; }
         if (ACTION_PAUSE.equals(action)) { nativeMediaAction(MEDIA_PAUSE); return START_STICKY; }
