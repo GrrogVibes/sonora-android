@@ -60,6 +60,7 @@ mod time;
 mod toast;
 mod tooltip;
 mod touch;
+pub use touch::TouchDrag;
 mod traffic_light_controls;
 mod unfold;
 mod vacancy;

@@ -310,18 +310,18 @@ impl PlayerBar {
             .gap_3()
             .flex_1()
             .min_w_0()
-            .child(self.artwork(window, cx))
+            .child(self.artwork(window, cx, 1.))
             .when(room, |this| this.child(self.track_details(false, cx)))
     }
 
     /// The playing cover keeps its album link and context menu in every layout.
-    fn artwork(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn artwork(&self, window: &Window, cx: &mut Context<Self>, scale: f32) -> impl IntoElement {
         let theme = cx.theme();
         let layout = self.settings.read(cx).player_bar_layout();
         let artwork = ui::snapped(
             match layout == PlayerBarLayout::Compact && !Self::stacked(window, layout) {
-                true => theme.metrics.thumb,
-                false => theme.metrics.row,
+                true => theme.metrics.thumb * scale,
+                false => theme.metrics.row * scale,
             },
             window,
         );
@@ -690,7 +690,7 @@ impl Render for PlayerBar {
                             .items_center()
                             .gap_1()
                             .flex_none()
-                            .child(self.artwork(window, cx))
+                            .child(self.artwork(window, cx, 1.))
                             .child(
                                 div()
                                     .w(cover)
@@ -710,7 +710,7 @@ impl Render for PlayerBar {
                             .min_w_0()
                             .child(self.stacked_title(cx))
                             .child(
-                                div().flex().items_center().gap_2()
+                                div().flex().items_center().justify_center().gap_2().w_full()
                                     .child(transport(&self.playback, false, cx))
                                     .child(like(track.as_ref(), &self.playback, cx)),
                             )
@@ -744,7 +744,7 @@ impl Render for PlayerBar {
                         .flex()
                         .items_center()
                         .gap_3()
-                        .child(self.artwork(window, cx))
+                        .child(self.artwork(window, cx, 1.))
                         .child(transport(&self.playback, false, cx)),
                 )
                 .child(

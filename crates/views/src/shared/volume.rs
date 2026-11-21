@@ -128,6 +128,12 @@ pub(crate) fn rising_volume<V: VolumeHost>(
     let open = volume.open();
     let span = theme.metrics.control_small + zone * 2.;
     let reach = Scrubber::bubble_reach(VOLUME_BUBBLE_LIFT, cx);
+    // A phone has no hover, so the button itself carries the drag: down turns it
+    // up, up turns it down.
+    let button_area = std::rc::Rc::new(std::cell::Cell::new(gpui::Bounds::default()));
+    let dragging = std::rc::Rc::new(std::cell::Cell::new(false));
+    let anchor = std::rc::Rc::new(std::cell::Cell::new((Pixels::ZERO, 0_f32)));
+    let dragged_playback = playback.clone();
     // The level shows for as long as the pointer is anywhere over the control, not only on
     // the track, and goes with it.
     let bubble = open.then(|| (level, percent(level)));
@@ -144,6 +150,49 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                     this.volume().over_button = *hovering;
                     cx.notify();
                 }))
+                .when(cfg!(target_os = "android"), |this| {
+                    this.child(
+                        ui::TouchDrag::new(button_area.clone(), move |event: &gpui::TouchDragEvent,
+                              area: gpui::Bounds<Pixels>,
+                              window: &mut Window,
+                              cx: &mut gpui::App| {
+                            match event.phase {
+                                gpui::TouchPhase::Started => {
+                                    if area.contains(&event.position) {
+                                        window.prevent_default();
+                                        dragging.set(true);
+                                        anchor.set((event.position.y, level));
+                                    }
+                                }
+                                gpui::TouchPhase::Moved => {
+                                    if dragging.get() {
+                                        let (start_y, start_level) = anchor.get();
+                                        let next = (start_level
+                                            + (event.position.y - start_y) / px(120.))
+                                            .clamp(0., 1.);
+                                        dragged_playback.update(
+                                            cx,
+                                            |playback, cx| playback.slide_volume(next, cx),
+                                        );
+                                        cx.notify(dragged_playback.entity_id());
+                                    }
+                                }
+                                gpui::TouchPhase::Ended
+                                | gpui::TouchPhase::Cancelled => {
+                                    if dragging.get() {
+                                        dragging.set(false);
+                                        dragged_playback.update(
+                                            cx,
+                                            |playback, cx| playback.end_volume_slide(cx),
+                                        );
+                                    }
+                                }
+                            }
+                        })
+                        .absolute()
+                        .size_full(),
+                    )
+                })
                 .child(
                     Button::new("volume")
                         .ghost()
@@ -204,6 +253,7 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                     div().h(px(VOLUME_RISE)).flex().child(
                         Scrubber::new(&volume.slider, level)
                             .vertical()
+                            .tap_only()
                             .name(t!("equalizer-status-volume"))
                             .value(percent(level))
                             .colors(theme.progress_bar, empty, theme.foreground)

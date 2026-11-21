@@ -106,6 +106,8 @@ pub struct Scrubber {
     thumb: Hsla,
     enabled: bool,
     vertical: bool,
+    /// A tap sets the value, but a finger drag does not move it.
+    tap_only: bool,
     /// What a screen reader calls the slider.
     name: Option<SharedString>,
     /// What a screen reader reads as the position in place of the bare fraction.
@@ -129,6 +131,7 @@ impl Scrubber {
             thumb: gpui::white(),
             enabled: true,
             vertical: false,
+            tap_only: false,
             name: None,
             value: None,
             bubble: None,
@@ -188,6 +191,12 @@ impl Scrubber {
         self
     }
 
+    /// A tap sets the value; a drag does not move it.
+    pub fn tap_only(mut self) -> Self {
+        self.tap_only = true;
+        self
+    }
+
     /// Names the slider for screen readers after what it sets, such as the volume.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
@@ -243,6 +252,7 @@ impl RenderOnce for Scrubber {
             thumb,
             enabled,
             vertical,
+            tap_only,
             name,
             value,
             bubble,
@@ -519,7 +529,7 @@ impl RenderOnce for Scrubber {
                 |this| this.justify_center().h_full().w(reach),
                 |this| this.items_center().w_full().h(reach),
             )
-            .child(
+            .when(!tap_only, |this| this.child(
                 crate::touch::TouchDrag::new(
                     bounds.clone(),
                     {
@@ -566,7 +576,7 @@ impl RenderOnce for Scrubber {
                 )
                 .absolute()
                 .size_full(),
-            )
+            ))
             .when(enabled, |this| {
                 this.cursor_pointer()
                     .on_mouse_down(MouseButton::Left, down)

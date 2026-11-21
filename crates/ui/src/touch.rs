@@ -15,14 +15,14 @@ use gpui::{
 };
 
 /// Forwards touch drags to a control, which decides by the area it was given.
-pub(crate) struct TouchDrag<F> {
+pub struct TouchDrag<F> {
     bounds: Rc<Cell<Bounds<Pixels>>>,
     handler: Rc<RefCell<F>>,
     style: StyleRefinement,
 }
 
 impl<F> TouchDrag<F> {
-    pub(crate) fn new(bounds: Rc<Cell<Bounds<Pixels>>>, handler: F) -> Self {
+    pub fn new(bounds: Rc<Cell<Bounds<Pixels>>>, handler: F) -> Self {
         Self {
             bounds,
             handler: Rc::new(RefCell::new(handler)),
