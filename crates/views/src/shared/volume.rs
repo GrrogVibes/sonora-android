@@ -133,8 +133,8 @@ pub(crate) fn rising_volume<V: VolumeHost>(
     let open = volume.open();
     let span = theme.metrics.control_small + zone * 2.;
     let reach = Scrubber::bubble_reach(VOLUME_BUBBLE_LIFT, cx);
-    // A phone has no hover, so the button itself carries the drag: down turns it
-    // up, up turns it down. The anchor lives on the host so a re-render mid-drag
+    // A phone has no hover, so the button itself carries the drag: up turns it
+    // up, down turns it down. The anchor lives on the host so a re-render mid-drag
     // does not drop it.
     let button_area = std::rc::Rc::new(std::cell::Cell::new(gpui::Bounds::default()));
     let drag = volume.drag.clone();
@@ -180,7 +180,8 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                                         if !moved && delta.abs() < px(6.) {
                                             return;
                                         }
-                                        let next = (start_level + delta / px(120.)).clamp(0., 1.);
+                                        // Up turns it up, down turns it down.
+                                        let next = (start_level - delta / px(120.)).clamp(0., 1.);
                                         dragged_playback.update(
                                             cx,
                                             |playback, cx| playback.slide_volume(next, cx),
