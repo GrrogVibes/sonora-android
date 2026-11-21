@@ -5,7 +5,7 @@ use gpui::{
     Window, deferred, div, px, relative,
 };
 use ui::Button;
-use ui::{Dismiss, Input};
+use ui::{ActiveTheme as _, Dismiss, Input};
 
 const WIDEST: Pixels = px(280.);
 
@@ -194,13 +194,19 @@ impl Render for Toolbar {
                         .on_click(cx.listener(|this, _, window, cx| this.toggle(window, cx))),
                 )
                 .when(self.open && floating, |this| {
+                    let theme = *cx.theme();
                     this.child(deferred(
                         div()
                             .absolute()
                             .right_0()
                             .top(relative(1.))
-                            .mt_1()
+                            .mt_2()
                             .w(WIDEST)
+                            .rounded(theme.radius)
+                            .border_1()
+                            .border_color(theme.border)
+                            .bg(theme.popover)
+                            .p_1()
                             .occlude()
                             .child(self.input.clone()),
                     ))

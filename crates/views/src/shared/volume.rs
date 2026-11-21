@@ -29,9 +29,21 @@ pub(crate) struct RisingVolume {
     over_panel: bool,
     /// Whether the slider is being dragged, which keeps it up wherever the pointer goes.
     pub(crate) held: bool,
-    /// A phone has no hover: tapping the button pins the panel up until tapped again.
-    pub(crate) pinned: bool,
     slider: ScrubberState,
+}
+
+/// A phone has no hover, so the panel is pinned by hand; one flag covers the bar
+/// and the fullscreen player, and lets the window close it on a tap outside.
+static PINNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether a volume panel is pinned open.
+pub(crate) fn pinned() -> bool {
+    PINNED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Pins or unpins the volume panel.
+pub(crate) fn set_pinned(value: bool) {
+    PINNED.store(value, std::sync::atomic::Ordering::Relaxed);
 }
 
 impl RisingVolume {
@@ -41,14 +53,20 @@ impl RisingVolume {
             over_zone: false,
             over_panel: false,
             held: false,
-            pinned: false,
             slider: ScrubberState::new(id),
         }
     }
 
     /// Whether the slider is up.
     pub(crate) fn open(&self) -> bool {
-        self.parked() || self.held || self.pinned
+        #[cfg(target_os = "android")]
+        {
+            pinned() || self.held
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            self.parked() || self.held
+        }
     }
 
     /// Whether the pointer rests on any part of the control.
@@ -61,7 +79,6 @@ impl RisingVolume {
         self.over_button = false;
         self.over_zone = false;
         self.over_panel = false;
-        self.pinned = false;
     }
 }
 
@@ -148,8 +165,8 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                             {
                                 // No hover on a phone: the button opens and closes the
                                 // panel instead of muting, so the slider is reachable.
-                                let volume = this.volume();
-                                volume.pinned = !volume.pinned;
+                                let next = !pinned();
+                                set_pinned(next);
                                 cx.notify();
                             }
                             #[cfg(not(target_os = "android"))]
@@ -220,6 +237,14 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                     .pb(theme.metrics.control_small + px(GAP) * 2.)
                     .flex()
                     .justify_center()
+                    .on_mouse_down_out(cx.listener(|this: &mut V, _, _, cx| {
+                        // A tap away from the control puts the slider away; a drag
+                        // that is still going keeps it.
+                        if !this.volume().held {
+                            set_pinned(false);
+                            cx.notify();
+                        }
+                    }))
                     .on_scroll_wheel(cx.listener(turn_volume))
                     .on_hover(cx.listener(|this: &mut V, hovering: &bool, _, cx| {
                         this.volume().over_zone = *hovering;

@@ -230,7 +230,9 @@ tokio = { version = "1.54", features = [
 ] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = [
     "connect",
-    "rustls-tls-native-roots",
+    # Android has no system trust store, so native roots cannot work there; the
+    # bundled Mozilla roots serve both targets.
+    "rustls-tls-webpki-roots",
 ] }
 
 # The vendored gpui fork carries the Android touch fixes (hold = right click,
