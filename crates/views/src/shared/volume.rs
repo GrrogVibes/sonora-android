@@ -30,8 +30,9 @@ pub(crate) struct RisingVolume {
     /// Whether the slider is being dragged, which keeps it up wherever the pointer goes.
     pub(crate) held: bool,
     /// A phone has no hover: the button itself carries the drag, and this keeps
-    /// its anchor across a re-render.
-    pub(crate) drag: std::rc::Rc<std::cell::Cell<Option<(Pixels, f32)>>>,
+    /// its anchor across a re-render. The flag says whether it became a drag, so
+    /// a plain tap still opens the panel.
+    pub(crate) drag: std::rc::Rc<std::cell::Cell<Option<(Pixels, f32, bool)>>>,
     slider: ScrubberState,
 }
 
@@ -138,6 +139,7 @@ pub(crate) fn rising_volume<V: VolumeHost>(
     let button_area = std::rc::Rc::new(std::cell::Cell::new(gpui::Bounds::default()));
     let drag = volume.drag.clone();
     let dragged_playback = playback.clone();
+    let host = cx.entity_id();
     // The level shows for as long as the pointer is anywhere over the control, not only on
     // the track, and goes with it.
     let bubble = open.then(|| (level, percent(level)));
@@ -165,31 +167,42 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                             match event.phase {
                                 gpui::TouchPhase::Started => {
                                     if area.contains(&event.position) {
+                                        // Claim it, so the drag is delivered; a tap
+                                        // is told apart from a drag by how far it
+                                        // travels, and answered here on release.
                                         window.prevent_default();
-                                        drag.set(Some((event.position.y, level)));
+                                        drag.set(Some((event.position.y, level, false)));
                                     }
                                 }
                                 gpui::TouchPhase::Moved => {
-                                    if let Some((start_y, start_level)) = drag.get() {
-                                        let next = (start_level
-                                            + (event.position.y - start_y) / px(120.))
-                                            .clamp(0., 1.);
+                                    if let Some((start_y, start_level, moved)) = drag.get() {
+                                        let delta = event.position.y - start_y;
+                                        if !moved && delta.abs() < px(6.) {
+                                            return;
+                                        }
+                                        let next = (start_level + delta / px(120.)).clamp(0., 1.);
                                         dragged_playback.update(
                                             cx,
                                             |playback, cx| playback.slide_volume(next, cx),
                                         );
                                         cx.notify(dragged_playback.entity_id());
+                                        drag.set(Some((start_y, start_level, true)));
                                     }
                                 }
                                 gpui::TouchPhase::Ended
                                 | gpui::TouchPhase::Cancelled => {
-                                    if drag.get().is_some() {
-                                        drag.set(None);
-                                        dragged_playback.update(
-                                            cx,
-                                            |playback, cx| playback.end_volume_slide(cx),
-                                        );
+                                    if let Some((_, _, moved)) = drag.get() {
+                                        if moved {
+                                            dragged_playback.update(
+                                                cx,
+                                                |playback, cx| playback.end_volume_slide(cx),
+                                            );
+                                        } else {
+                                            set_pinned(!pinned());
+                                            cx.notify(host);
+                                        }
                                     }
+                                    drag.set(None);
                                 }
                             }
                         })

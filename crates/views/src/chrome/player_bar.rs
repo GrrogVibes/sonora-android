@@ -569,7 +569,7 @@ impl PlayerBar {
             .min_w_0()
             .truncate()
             .text_center()
-            .text_color(cx.theme().muted_foreground)
+            .text_color(cx.theme().primary)
             .child(text)
     }
 
@@ -686,7 +686,7 @@ impl Render for PlayerBar {
                             .items_center()
                             .gap_1()
                             .flex_none()
-                            .child(self.artwork(window, cx, 1.05)),
+                            .child(self.artwork(window, cx, 1.12)),
                             )
                     // Title, then the transport with the heart, then the timeline.
                     .child(
