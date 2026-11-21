@@ -1,51 +1,109 @@
-//! Which touches should become drags.
+//! Touch drags for controls that want them.
 //!
-//! A finger drag is not a mouse drag, so GPUI only drives one as a mouse drag
-//! when the touch starts inside a control that asked for it. The controls
-//! register their area here and GPUI asks [`touch_drag_hit`] before synthesizing
-//! anything, which is what keeps a plain pan scrolling.
+//! A finger drag is not a mouse drag, so GPUI leaves it to the pan. A control
+//! that wants to be dragged (a slider) mounts a [`TouchDrag`] element: it hears
+//! the raw touch, claims the gesture only when the touch starts inside its own
+//! area, and drives its owner. Everything else keeps scrolling.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
-use gpui::{Bounds, Pixels, Point};
+use gpui::{
+    App, Bounds, DispatchPhase, Element, GlobalElementId, InspectorElementId, IntoElement,
+    LayoutId, Pixels, Refineable as _, Style, StyleRefinement, Styled, TouchDragEvent, TouchPhase,
+    Window,
+};
 
-static AREAS: Mutex<Vec<(u64, Bounds<Pixels>)>> = Mutex::new(Vec::new());
-static NEXT: AtomicU64 = AtomicU64::new(0);
-
-/// Whether a touch starting here should be driven as a drag.
-pub fn touch_drag_hit(position: Point<Pixels>) -> bool {
-    let Ok(areas) = AREAS.lock() else {
-        return false;
-    };
-    areas.iter().any(|(_, bounds)| bounds.contains(&position))
+/// Forwards touch drags to a control, which decides by the area it was given.
+pub(crate) struct TouchDrag<F> {
+    bounds: Rc<Cell<Bounds<Pixels>>>,
+    handler: Rc<RefCell<F>>,
+    style: StyleRefinement,
 }
 
-/// A control's draggable area, forgotten when the control goes away.
-pub(crate) struct TouchArea(u64);
-
-impl TouchArea {
-    pub(crate) fn new() -> Self {
-        let id = NEXT.fetch_add(1, Ordering::Relaxed);
-        if let Ok(mut areas) = AREAS.lock() {
-            areas.push((id, Bounds::default()));
-        }
-        Self(id)
-    }
-
-    pub(crate) fn set(&self, bounds: Bounds<Pixels>) {
-        if let Ok(mut areas) = AREAS.lock()
-            && let Some(area) = areas.iter_mut().find(|(held, _)| *held == self.0)
-        {
-            area.1 = bounds;
+impl<F> TouchDrag<F> {
+    pub(crate) fn new(bounds: Rc<Cell<Bounds<Pixels>>>, handler: F) -> Self {
+        Self {
+            bounds,
+            handler: Rc::new(RefCell::new(handler)),
+            style: StyleRefinement::default(),
         }
     }
 }
 
-impl Drop for TouchArea {
-    fn drop(&mut self) {
-        if let Ok(mut areas) = AREAS.lock() {
-            areas.retain(|(held, _)| *held != self.0);
-        }
+impl<F> IntoElement for TouchDrag<F>
+where
+    F: FnMut(&TouchDragEvent, Bounds<Pixels>, &mut Window, &mut App) + 'static,
+{
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+impl<F> Styled for TouchDrag<F> {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
+    }
+}
+
+impl<F> Element for TouchDrag<F>
+where
+    F: FnMut(&TouchDragEvent, Bounds<Pixels>, &mut Window, &mut App) + 'static,
+{
+    type RequestLayoutState = Style;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<gpui::ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let mut style = Style::default();
+        style.refine(&self.style);
+        let id = window.request_layout(style.clone(), [], cx);
+        (id, style)
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _layout: &mut Self::RequestLayoutState,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) {
+        self.bounds.set(bounds);
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        _layout: &mut Self::RequestLayoutState,
+        _prepaint: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let bounds = Rc::clone(&self.bounds);
+        let handler = Rc::clone(&self.handler);
+        window.on_mouse_event(move |event: &TouchDragEvent, phase, window, cx| {
+            if phase == DispatchPhase::Bubble {
+                (handler.borrow_mut())(event, bounds.get(), window, cx);
+            }
+        });
     }
 }

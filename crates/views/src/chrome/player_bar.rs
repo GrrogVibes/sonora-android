@@ -557,6 +557,21 @@ impl PlayerBar {
         !Chrome::window_room(window).fits(room)
     }
 
+    /// The one-line title a stacked bar shows, for a phone held upright.
+    fn stacked_title(&self, cx: &mut Context<Self>) -> impl gpui::IntoElement {
+        let text = match self.playback.read(cx).shown_track(cx) {
+            Some(track) => SharedString::from(format!("{} — {}", track.name, track.artists)),
+            None => t!("player-nothing-playing"),
+        };
+        div()
+            .id("now-playing-line")
+            .w_full()
+            .min_w_0()
+            .truncate()
+            .text_color(cx.theme().muted_foreground)
+            .child(text)
+    }
+
     /// How far below its place in a full-height bar the fullscreen button sits, which is where
     /// a stacked or compact bar puts it. The fullscreen player drops its own corner by as
     /// much, so the button stays under the pointer when the player opens and closes.
@@ -577,7 +592,7 @@ impl PlayerBar {
         let theme = *cx.theme();
         let layout = Sonora::global(cx).settings.read(cx).player_bar_layout();
         let height = match (Self::stacked(window, layout), layout) {
-            (true, _) => theme.metrics.player_bar + theme.metrics.pad * 3.,
+            (true, _) => theme.metrics.player_bar + theme.metrics.pad * 5.,
             (false, PlayerBarLayout::Compact) => theme.metrics.row + theme.metrics.pad * 2.,
             _ => theme.metrics.player_bar,
         };
@@ -671,7 +686,7 @@ impl Render for PlayerBar {
                 )
                 // A phone held upright has no room beside the transport, so the
                 // title gets a line of its own instead of disappearing.
-                .child(self.track_details(false, cx).w_full())
+                .child(self.stacked_title(cx))
                 .child(
                     div()
                         .flex()
