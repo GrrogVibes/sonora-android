@@ -289,8 +289,6 @@ impl RenderOnce for Scrubber {
             }
         };
 
-        let touch_state = state.clone();
-        let touch_release = on_release.clone();
         let dragged = {
             let on_move = on_move.clone();
             let mine = id.clone();
@@ -529,54 +527,13 @@ impl RenderOnce for Scrubber {
                 |this| this.justify_center().h_full().w(reach),
                 |this| this.items_center().w_full().h(reach),
             )
-            .when(!tap_only, |this| this.child(
-                crate::touch::TouchDrag::new(
-                    bounds.clone(),
-                    {
-                        let state = touch_state.clone();
-                        let at = at.clone();
-                        let on_move = on_move.clone();
-                        let on_release = touch_release.clone();
-                        let held = std::rc::Rc::new(std::cell::Cell::new(false));
-                        move |event: &gpui::TouchDragEvent,
-                              area: Bounds<Pixels>,
-                              window: &mut Window,
-                              cx: &mut App| {
-                            // Claim the gesture only when the touch starts on the
-                            // slider, so a pan anywhere else keeps scrolling.
-                            match event.phase {
-                                gpui::TouchPhase::Started => {
-                                    if area.contains(&event.position) {
-                                        window.prevent_default();
-                                        held.set(true);
-                                        if let Some(handler) = on_move.as_ref() {
-                                            handler(&at(&state, event.position), window, cx);
-                                        }
-                                    }
-                                }
-                                gpui::TouchPhase::Moved => {
-                                    if held.get() {
-                                        if let Some(handler) = on_move.as_ref() {
-                                            handler(&at(&state, event.position), window, cx);
-                                        }
-                                    }
-                                }
-                                gpui::TouchPhase::Ended
-                                | gpui::TouchPhase::Cancelled => {
-                                    if held.get() {
-                                        held.set(false);
-                                        if let Some(handler) = on_release.as_ref() {
-                                            handler(&MouseUpEvent::default(), window, cx);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
+            .when(!tap_only, |this| {
+                this.child(
+                    crate::touch::TouchDrag::area_in(bounds.clone())
+                        .absolute()
+                        .size_full(),
                 )
-                .absolute()
-                .size_full(),
-            ))
+            })
             .when(enabled, |this| {
                 this.cursor_pointer()
                     .on_mouse_down(MouseButton::Left, down)

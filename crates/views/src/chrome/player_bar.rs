@@ -568,6 +568,7 @@ impl PlayerBar {
             .w_full()
             .min_w_0()
             .truncate()
+            .text_center()
             .text_color(cx.theme().muted_foreground)
             .child(text)
     }
@@ -693,7 +694,7 @@ impl Render for PlayerBar {
                             .child(self.artwork(window, cx, 1.))
                             .child(
                                 div()
-                                    .w(cover)
+                                    .w(cover * 1.12)
                                     .text_color(theme.muted_foreground)
                     .truncate()
                                     .text_center()

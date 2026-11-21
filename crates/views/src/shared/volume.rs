@@ -151,11 +151,13 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                     cx.notify();
                 }))
                 .when(cfg!(target_os = "android"), |this| {
+                    // Under the button, so the button keeps its own taps; a drag
+                    // starting here still turns the volume up going down.
                     this.child(
                         ui::TouchDrag::new(button_area.clone(), move |event: &gpui::TouchDragEvent,
-                              area: gpui::Bounds<Pixels>,
                               window: &mut Window,
                               cx: &mut gpui::App| {
+                            let area = button_area.get();
                             match event.phase {
                                 gpui::TouchPhase::Started => {
                                     if area.contains(&event.position) {
