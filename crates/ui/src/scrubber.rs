@@ -46,6 +46,9 @@ impl Render for Grab {
 pub struct ScrubberState {
     id: SharedString,
     bounds: Rc<Cell<Bounds<Pixels>>>,
+    /// Whether a finger drag is moving this slider; kept here so a re-render
+    /// mid-drag does not drop it.
+    pub(crate) held: Rc<std::cell::Cell<bool>>,
 }
 
 impl ScrubberState {
@@ -53,6 +56,7 @@ impl ScrubberState {
         Self {
             id: id.into(),
             bounds: Rc::new(Cell::new(Bounds::default())),
+            held: Rc::new(std::cell::Cell::new(false)),
         }
     }
 
@@ -100,6 +104,7 @@ pub struct Scrubber {
     base: Stateful<Div>,
     id: SharedString,
     bounds: Rc<Cell<Bounds<Pixels>>>,
+    held: Rc<std::cell::Cell<bool>>,
     fraction: f32,
     filled: Hsla,
     empty: Hsla,
@@ -125,6 +130,7 @@ impl Scrubber {
             base: div().id(ElementId::Name(state.id.clone())),
             id: state.id.clone(),
             bounds: state.bounds.clone(),
+            held: state.held.clone(),
             fraction: fraction.clamp(0., 1.),
             filled: gpui::white(),
             empty: gpui::black(),
@@ -246,6 +252,7 @@ impl RenderOnce for Scrubber {
             mut base,
             id,
             bounds,
+            held,
             fraction,
             filled,
             empty,
@@ -266,6 +273,7 @@ impl RenderOnce for Scrubber {
         let state = Rc::new(ScrubberState {
             id: id.clone(),
             bounds: bounds.clone(),
+            held: held.clone(),
         });
         let on_move = on_move.map(Rc::new);
         let on_release = on_release.map(Rc::new);
@@ -289,6 +297,8 @@ impl RenderOnce for Scrubber {
             }
         };
 
+        let touch_state = state.clone();
+        let touch_release = on_release.clone();
         let dragged = {
             let on_move = on_move.clone();
             let mine = id.clone();
@@ -529,9 +539,45 @@ impl RenderOnce for Scrubber {
             )
             .when(!tap_only, |this| {
                 this.child(
-                    crate::touch::TouchDrag::area_in(bounds.clone())
-                        .absolute()
-                        .size_full(),
+                    crate::touch::TouchDrag::new(bounds.clone(), {
+                        let state = touch_state.clone();
+                        let at = at.clone();
+                        let on_move = on_move.clone();
+                        let on_release = touch_release.clone();
+                        move |event: &gpui::TouchDragEvent, window: &mut Window, cx: &mut App| {
+                            // Claim only a touch that starts on the slider, so a pan
+                            // anywhere else keeps scrolling.
+                            match event.phase {
+                                gpui::TouchPhase::Started => {
+                                    if state.bounds().contains(&event.position) {
+                                        window.prevent_default();
+                                        state.held.set(true);
+                                        if let Some(handler) = on_move.as_ref() {
+                                            handler(&at(&state, event.position), window, cx);
+                                        }
+                                    }
+                                }
+                                gpui::TouchPhase::Moved => {
+                                    if state.held.get() {
+                                        if let Some(handler) = on_move.as_ref() {
+                                            handler(&at(&state, event.position), window, cx);
+                                        }
+                                    }
+                                }
+                                gpui::TouchPhase::Ended
+                                | gpui::TouchPhase::Cancelled => {
+                                    if state.held.get() {
+                                        state.held.set(false);
+                                        if let Some(handler) = on_release.as_ref() {
+                                            handler(&MouseUpEvent::default(), window, cx);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .absolute()
+                    .size_full(),
                 )
             })
             .when(enabled, |this| {

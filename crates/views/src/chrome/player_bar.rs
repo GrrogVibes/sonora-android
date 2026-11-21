@@ -675,11 +675,6 @@ impl Render for PlayerBar {
             (true, _) => {
                 let theme = *cx.theme();
                 let track = self.playback.read(cx).shown_track(cx);
-                let artist = track
-                    .as_ref()
-                    .map(|track| track.artists.clone())
-                    .unwrap_or_default();
-                let cover = theme.metrics.row;
                 base.flex()
                     .items_center()
                     .gap_3()
@@ -691,16 +686,8 @@ impl Render for PlayerBar {
                             .items_center()
                             .gap_1()
                             .flex_none()
-                            .child(self.artwork(window, cx, 1.))
-                            .child(
-                                div()
-                                    .w(cover * 1.12)
-                                    .text_color(theme.muted_foreground)
-                    .truncate()
-                                    .text_center()
-                                    .child(artist),
-                            ),
-                    )
+                            .child(self.artwork(window, cx, 1.05)),
+                            )
                     // Title, then the transport with the heart, then the timeline.
                     .child(
                         div()

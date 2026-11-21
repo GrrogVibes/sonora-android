@@ -29,6 +29,9 @@ pub(crate) struct RisingVolume {
     over_panel: bool,
     /// Whether the slider is being dragged, which keeps it up wherever the pointer goes.
     pub(crate) held: bool,
+    /// A phone has no hover: the button itself carries the drag, and this keeps
+    /// its anchor across a re-render.
+    pub(crate) drag: std::rc::Rc<std::cell::Cell<Option<(Pixels, f32)>>>,
     slider: ScrubberState,
 }
 
@@ -53,6 +56,7 @@ impl RisingVolume {
             over_zone: false,
             over_panel: false,
             held: false,
+            drag: std::rc::Rc::new(std::cell::Cell::new(None)),
             slider: ScrubberState::new(id),
         }
     }
@@ -129,10 +133,10 @@ pub(crate) fn rising_volume<V: VolumeHost>(
     let span = theme.metrics.control_small + zone * 2.;
     let reach = Scrubber::bubble_reach(VOLUME_BUBBLE_LIFT, cx);
     // A phone has no hover, so the button itself carries the drag: down turns it
-    // up, up turns it down.
+    // up, up turns it down. The anchor lives on the host so a re-render mid-drag
+    // does not drop it.
     let button_area = std::rc::Rc::new(std::cell::Cell::new(gpui::Bounds::default()));
-    let dragging = std::rc::Rc::new(std::cell::Cell::new(false));
-    let anchor = std::rc::Rc::new(std::cell::Cell::new((Pixels::ZERO, 0_f32)));
+    let drag = volume.drag.clone();
     let dragged_playback = playback.clone();
     // The level shows for as long as the pointer is anywhere over the control, not only on
     // the track, and goes with it.
@@ -162,13 +166,11 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                                 gpui::TouchPhase::Started => {
                                     if area.contains(&event.position) {
                                         window.prevent_default();
-                                        dragging.set(true);
-                                        anchor.set((event.position.y, level));
+                                        drag.set(Some((event.position.y, level)));
                                     }
                                 }
                                 gpui::TouchPhase::Moved => {
-                                    if dragging.get() {
-                                        let (start_y, start_level) = anchor.get();
+                                    if let Some((start_y, start_level)) = drag.get() {
                                         let next = (start_level
                                             + (event.position.y - start_y) / px(120.))
                                             .clamp(0., 1.);
@@ -181,8 +183,8 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                                 }
                                 gpui::TouchPhase::Ended
                                 | gpui::TouchPhase::Cancelled => {
-                                    if dragging.get() {
-                                        dragging.set(false);
+                                    if drag.get().is_some() {
+                                        drag.set(None);
                                         dragged_playback.update(
                                             cx,
                                             |playback, cx| playback.end_volume_slide(cx),

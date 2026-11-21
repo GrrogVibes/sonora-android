@@ -31,10 +31,6 @@ fn android_main(app: android_activity::AndroidApp) {
 
     publish_android_dirs();
 
-    // A finger drag becomes a mouse drag only inside a control that asked for it;
-    // everywhere else the pan keeps scrolling.
-    gpui::set_touch_drag_hit_test(Box::new(|position| ui::touch_drag_hit(position)));
-
     // reqwest 0.13 verifies TLS through `rustls-platform-verifier`, which on
     // Android must be given the JVM before any request runs; without it the
     // first HTTPS call panics with "Expect rustls-platform-verifier to be
