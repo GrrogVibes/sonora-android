@@ -316,6 +316,19 @@ pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaAction(
     commands.send(command).ok();
 }
 
+/// A trace line for the on-screen diagnostic.
+///
+/// # Safety
+/// Called by JNI with a valid call frame.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaTrace(
+    _env: *mut c_void,
+    _class: *mut c_void,
+    code: i32,
+) {
+    crate::media_event::record(format!("trace {code}"));
+}
+
 /// A media key the activity reports. Runs on the Android main thread.
 ///
 /// # Safety

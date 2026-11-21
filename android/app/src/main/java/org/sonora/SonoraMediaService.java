@@ -85,6 +85,15 @@ public class SonoraMediaService extends Service {
             @Override public void onSkipToPrevious() { nativeMediaAction(MEDIA_PREVIOUS); }
             @Override public void onSeekTo(long to) { nativeMediaSeek(to); }
             @Override public void onStop() { nativeMediaAction(MEDIA_PAUSE); }
+
+            @Override
+            public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                // Anything that arrives as a media-button intent is worth seeing:
+                // a headset whose play/pause never shows up as a key event would
+                // land here instead.
+                nativeMediaTrace(9999);
+                return super.onMediaButtonEvent(mediaButtonIntent);
+            }
         });
         session.setActive(true);
     }
@@ -252,4 +261,7 @@ public class SonoraMediaService extends Service {
      * focused activity rather than through the session.
      */
     static native void nativeMediaKey(int keyCode);
+
+    /** A trace line for the on-screen diagnostic. */
+    static native void nativeMediaTrace(int code);
 }

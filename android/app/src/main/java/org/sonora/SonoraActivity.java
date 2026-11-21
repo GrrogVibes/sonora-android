@@ -30,6 +30,19 @@ public class SonoraActivity extends dev.gpui.mobile.GpuiInputActivity {
                 case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                 case KeyEvent.KEYCODE_MEDIA_PLAY:
                 case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                case KeyEvent.KEYCODE_MEDIA_NEXT:
+                case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                case KeyEvent.KEYCODE_MEDIA_STOP:
+                case KeyEvent.KEYCODE_HEADSETHOOK:
+                    SonoraMediaService.nativeMediaTrace(event.getKeyCode());
+                    break;
+                default:
+                    break;
+            }
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                case KeyEvent.KEYCODE_MEDIA_PLAY:
+                case KeyEvent.KEYCODE_MEDIA_PAUSE:
                 case KeyEvent.KEYCODE_HEADSETHOOK:
                     SonoraMediaService.nativeMediaKey(event.getKeyCode());
                     return true;
