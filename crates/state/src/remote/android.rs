@@ -151,6 +151,55 @@ fn stop() {
     });
 }
 
+/// Moves the media stream, which is what the in-app slider actually controls.
+fn set_stream_volume(level: f64) {
+    let _ = with_env(|env| {
+        let context = context(env)?;
+        let name = env.new_string("audio")?;
+        let manager = env
+            .call_method(
+                &context,
+                jni_str!("getSystemService"),
+                jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
+                &[JValue::Object(&name)],
+            )
+            .and_then(|value| value.l())
+            .map_err(|error| {
+                env.exception_describe();
+                env.exception_clear();
+                error
+            })?;
+        // AudioManager.STREAM_MUSIC
+        let stream = 3;
+        let max = env
+            .call_method(
+                &manager,
+                jni_str!("getStreamMaxVolume"),
+                jni_sig!("(I)I"),
+                &[JValue::Int(stream)],
+            )
+            .and_then(|value| value.i())
+            .map_err(|error| {
+                env.exception_describe();
+                env.exception_clear();
+                error
+            })?;
+        let index = (level.clamp(0.0, 1.0) * max as f64).round() as i32;
+        env.call_method(
+            &manager,
+            jni_str!("setStreamVolume"),
+            jni_sig!("(III)V"),
+            &[JValue::Int(stream), JValue::Int(index), JValue::Int(0)],
+        )
+        .map_err(|error| {
+            env.exception_describe();
+            env.exception_clear();
+            error
+        })?;
+        Ok(())
+    });
+}
+
 fn put_string(env: &mut jni::Env<'_>, intent: &jni::objects::JObject<'_>, key: &str, value: &str) -> Result<()> {
     let key = env.new_string(key)?;
     let value = env.new_string(value)?;
@@ -260,7 +309,9 @@ impl Controls {
     }
 
     /// Volume is the system's on Android; the UI keeps its own slider.
-    pub fn set_volume(&mut self, _level: f64) {}
+    pub fn set_volume(&mut self, level: f64) {
+        set_stream_volume(level);
+    }
 
     pub fn set_shuffle(&mut self, _on: bool) {}
 
@@ -347,9 +398,11 @@ pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaKey(
         85 | 79 => Command::Toggle,
         126 => Command::Play,
         127 => Command::Pause,
-        88 => Command::Next,
-        87 => Command::Previous,
-        130 => Command::Pause,
+        // Android's numbers are the reverse of the usual reading: NEXT is 87,
+        // PREVIOUS is 88. Getting this backwards swaps the headset's gestures.
+        87 => Command::Next,
+        88 => Command::Previous,
+        86 => Command::Pause,
         _ => return,
     };
     crate::media_event::record(format!("key {key_code}"));
