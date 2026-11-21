@@ -533,6 +533,20 @@ impl PlayerBar {
         }
     }
 
+    /// A phone held upright has no room for an inline slider beside the title, so the
+    /// volume rises from its button instead; landscape keeps a slider, just a shorter one.
+    fn portrait(window: &Window) -> bool {
+        let size = window.viewport_size();
+        size.height > size.width
+    }
+
+    fn touch_volume(window: &Window, inline: Volume) -> Volume {
+        match cfg!(target_os = "android") && Self::portrait(window) {
+            true => Volume::Rising,
+            false => inline,
+        }
+    }
+
     /// Centered needs room for its three columns; smaller windows keep every control reachable
     /// in the shared responsive layout. Only the whole window's width determines the choice.
     fn stacked(window: &Window, layout: PlayerBarLayout) -> bool {
@@ -663,7 +677,10 @@ impl Render for PlayerBar {
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
                         .child(buttons)
-                        .child(self.sound(Volume::Slider(Self::volume_width(window)), cx))
+                        .child(self.sound(
+                            Self::touch_volume(window, Volume::Slider(Self::volume_width(window))),
+                            cx,
+                        ))
                         .child(self.fullscreen_button(cx)),
                 ),
             (false, PlayerBarLayout::Centered) => base
@@ -703,7 +720,10 @@ impl Render for PlayerBar {
                         .justify_end()
                         .gap_2()
                         .child(buttons)
-                        .child(self.sound(Volume::Slider(px(VOLUME_WIDTH)), cx))
+                        .child(self.sound(
+                            Self::touch_volume(window, Volume::Slider(px(VOLUME_WIDTH))),
+                            cx,
+                        ))
                         .child(self.fullscreen_button(cx)),
                 ),
             (false, PlayerBarLayout::Compact) => base
@@ -716,7 +736,16 @@ impl Render for PlayerBar {
                 .child(transport(&self.playback, false, cx))
                 .child(div().flex_1().min_w_0().child(seek))
                 .child(buttons)
-                .child(self.sound(Volume::Slider(px(VOLUME_WIDTH)), cx))
+                .child(self.sound(
+                    Self::touch_volume(
+                        window,
+                        match cfg!(target_os = "android") && !Self::portrait(window) {
+                            true => Volume::Slider(px(VOLUME_TIGHT)),
+                            false => Volume::Slider(px(VOLUME_WIDTH)),
+                        },
+                    ),
+                    cx,
+                ))
                 .child(self.fullscreen_button(cx)),
             // The two sides share what the middle leaves them evenly, so the transport and the
             // seek bar stay centred. `classic` works out how wide the middle is and how the
@@ -746,7 +775,7 @@ impl Render for PlayerBar {
                             .justify_end()
                             .gap_2()
                             .child(buttons)
-                            .child(self.sound(volume, cx))
+                            .child(self.sound(Self::touch_volume(window, volume), cx))
                             .child(self.fullscreen_button(cx)),
                     )
             }

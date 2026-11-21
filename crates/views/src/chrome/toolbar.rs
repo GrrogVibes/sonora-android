@@ -2,7 +2,7 @@ use gpui::accesskit::Role;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, Focusable as _, Pixels, Render, SharedString,
-    Window, div, px,
+    Window, deferred, div, px, relative,
 };
 use ui::Button;
 use ui::{Dismiss, Input};
@@ -150,11 +150,15 @@ impl Toolbar {
 }
 
 impl Render for Toolbar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let tools = match self.tools.as_ref() {
             Some(tools) => tools(cx),
             None => Vec::new(),
         };
+        // Upright, the field has no room beside the tools, so it drops below the
+        // button as a floating panel instead of squeezing the bar.
+        let size = window.viewport_size();
+        let floating = cfg!(target_os = "android") && size.height > size.width;
 
         div()
             .id("toolbar")
@@ -163,6 +167,7 @@ impl Render for Toolbar {
                 this.aria_label(i18n::lookup("common-search", None))
             })
             .flex()
+            .relative()
             .min_w_0()
             .items_center()
             .justify_end()
@@ -170,7 +175,7 @@ impl Render for Toolbar {
             .on_action(cx.listener(|this, _: &Dismiss, window, cx| this.close(window, cx)))
             .children(tools)
             .when(self.apply.is_some(), |this| {
-                this.when(self.open, |this| {
+                this.when(self.open && !floating, |this| {
                     this.child(div().flex().w(WIDEST).min_w_0().child(self.input.clone()))
                 })
                 .child(
@@ -188,6 +193,18 @@ impl Render for Toolbar {
                         .aria_expanded(self.open)
                         .on_click(cx.listener(|this, _, window, cx| this.toggle(window, cx))),
                 )
+                .when(self.open && floating, |this| {
+                    this.child(deferred(
+                        div()
+                            .absolute()
+                            .right_0()
+                            .top(relative(1.))
+                            .mt_1()
+                            .w(WIDEST)
+                            .occlude()
+                            .child(self.input.clone()),
+                    ))
+                })
             })
     }
 }

@@ -1498,7 +1498,7 @@ impl<S: TableSource> TableState<S> {
                                 event.modifiers.shift,
                                 event.modifiers.secondary() && !event.modifiers.shift,
                             );
-                            if event.click_count >= 2 {
+                            if event.click_count >= 2 || cfg!(target_os = "android") {
                                 cx.emit(TableEvent::DoubleClicked(display));
                             }
                             cx.notify();

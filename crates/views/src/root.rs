@@ -644,26 +644,29 @@ impl Root {
             back(cx);
             return;
         }
-        match router::trail(cx).read(cx).current() {
-            Destination::Equalizer => {
-                self.screens.equalizer.update(cx, |view, cx| {
-                    if view.escape() {
-                        cx.notify();
-                    }
-                });
-            }
-            Destination::Settings(_) => {
-                self.screens.settings.update(cx, |view, cx| view.escape(cx));
-            }
-            Destination::Artist(_) => {
-                if let Some(artist) = self.screens.artist.clone() {
-                    artist.update(cx, |view, cx| view.escape(cx));
+        let handled = match router::trail(cx).read(cx).current() {
+            Destination::Equalizer => self.screens.equalizer.update(cx, |view, cx| {
+                let handled = view.escape();
+                if handled {
+                    cx.notify();
                 }
-            }
-            Destination::Song(_) => {
-                self.screens.song.update(cx, |view, cx| view.escape(cx));
-            }
-            _ => {}
+                handled
+            }),
+            Destination::Settings(_) => self
+                .screens
+                .settings
+                .update(cx, |view, cx| view.escape(cx)),
+            Destination::Artist(_) => match self.screens.artist.clone() {
+                Some(artist) => artist.update(cx, |view, cx| view.escape(cx)),
+                None => false,
+            },
+            Destination::Song(_) => self.screens.song.update(cx, |view, cx| view.escape(cx)),
+            _ => false,
+        };
+        // On a phone the back key is the way out of a screen once nothing inside
+        // it claims the press.
+        if !handled && cfg!(target_os = "android") {
+            back(cx);
         }
     }
 

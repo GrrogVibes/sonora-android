@@ -29,6 +29,8 @@ pub(crate) struct RisingVolume {
     over_panel: bool,
     /// Whether the slider is being dragged, which keeps it up wherever the pointer goes.
     pub(crate) held: bool,
+    /// A phone has no hover: tapping the button pins the panel up until tapped again.
+    pub(crate) pinned: bool,
     slider: ScrubberState,
 }
 
@@ -39,13 +41,14 @@ impl RisingVolume {
             over_zone: false,
             over_panel: false,
             held: false,
+            pinned: false,
             slider: ScrubberState::new(id),
         }
     }
 
     /// Whether the slider is up.
     pub(crate) fn open(&self) -> bool {
-        self.parked() || self.held
+        self.parked() || self.held || self.pinned
     }
 
     /// Whether the pointer rests on any part of the control.
@@ -58,6 +61,7 @@ impl RisingVolume {
         self.over_button = false;
         self.over_zone = false;
         self.over_panel = false;
+        self.pinned = false;
     }
 }
 
@@ -140,6 +144,15 @@ pub(crate) fn rising_volume<V: VolumeHost>(
                             false => theme.muted_foreground,
                         })
                         .on_click(cx.listener(move |this: &mut V, _, _, cx| {
+                            #[cfg(target_os = "android")]
+                            {
+                                // No hover on a phone: the button opens and closes the
+                                // panel instead of muting, so the slider is reachable.
+                                let volume = this.volume();
+                                volume.pinned = !volume.pinned;
+                                cx.notify();
+                            }
+                            #[cfg(not(target_os = "android"))]
                             this.playback()
                                 .update(cx, |playback, cx| playback.toggle_muted(cx));
                         })),

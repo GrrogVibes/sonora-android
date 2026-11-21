@@ -233,6 +233,13 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = [
     "rustls-tls-native-roots",
 ] }
 
+# The vendored gpui fork carries the Android touch fixes (hold = right click,
+# finger drag = mouse drag); the git rev is kept for provenance.
+[patch."https://github.com/sonorahq/gpui"]
+gpui = { path = "vendor/gpui/crates/gpui" }
+gpui_platform = { path = "vendor/gpui/crates/gpui_platform" }
+gpui_wgpu = { path = "vendor/gpui/crates/gpui_wgpu" }
+
 [patch.crates-io]
 librespot-audio = { git = "https://github.com/sonorahq/librespot", rev = "c3bbdf7faca8b6e36a9fdc6ba3e8b8923e89b893" }
 librespot-core = { git = "https://github.com/sonorahq/librespot", rev = "c3bbdf7faca8b6e36a9fdc6ba3e8b8923e89b893" }

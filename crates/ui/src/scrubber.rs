@@ -264,6 +264,10 @@ impl RenderOnce for Scrubber {
             let state = state.clone();
             let on_move = on_move.clone();
             move |event: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                // On a phone the finger drag is claimed here, so the gesture
+                // recognizer keeps sending drag moves instead of panning.
+                #[cfg(target_os = "android")]
+                window.prevent_default();
                 if let Some(handler) = on_move.as_ref() {
                     handler(&at(&state, event.position), window, cx);
                 }
