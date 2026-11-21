@@ -1,5 +1,6 @@
 package org.sonora;
 
+import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
@@ -21,8 +22,31 @@ public class SonoraActivity extends dev.gpui.mobile.GpuiInputActivity {
 
     private static final String TAG = "SonoraActivity";
 
+    /** A volume-key trace line for the on-screen diagnostic. */
+    static native void nativeVolumeTrace(int keyCode, int volume, int max);
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        // The volume keys are the "main" control: they move the system media
+        // stream, not Sonora's own slider. Doing it here rather than trusting
+        // setVolumeControlStream keeps it working whatever the window decides.
+        if (event.getAction() == KeyEvent.ACTION_DOWN
+                && (code == KeyEvent.KEYCODE_VOLUME_UP
+                    || code == KeyEvent.KEYCODE_VOLUME_DOWN)) {
+            AudioManager audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audio != null) {
+                nativeVolumeTrace(code, audio.getStreamVolume(AudioManager.STREAM_MUSIC),
+                        audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                        code == KeyEvent.KEYCODE_VOLUME_UP
+                                ? AudioManager.ADJUST_RAISE
+                                : AudioManager.ADJUST_LOWER,
+                        AudioManager.FLAG_SHOW_UI);
+            }
+            return true;
+        }
+
         // Some headsets deliver play/pause to the focused activity instead of the
         // media session. Forward those, and let everything else reach the app.
         if (event.getAction() == KeyEvent.ACTION_DOWN) {

@@ -318,6 +318,22 @@ pub unsafe extern "C" fn Java_org_sonora_SonoraMediaService_nativeMediaAction(
     commands.send(command).ok();
 }
 
+/// A volume-key trace line, drawn on screen so a phone without logcat can show
+/// whether the key arrived and what the stream did.
+///
+/// # Safety
+/// Called by JNI with a valid call frame.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_org_sonora_SonoraActivity_nativeVolumeTrace(
+    _env: *mut c_void,
+    _class: *mut c_void,
+    key_code: i32,
+    volume: i32,
+    max: i32,
+) {
+    crate::media_event::record(format!("vol key {key_code} {volume}/{max}"));
+}
+
 /// A trace line for the on-screen diagnostic.
 ///
 /// # Safety
