@@ -1715,7 +1715,10 @@ fn device_info(session: &Session, naming: &Naming) -> DeviceInfo {
         volume: u16::MAX as u32 / 2,
         name: device_name(naming),
         device_id: session.device_id().to_owned(),
-        device_type: EnumOrUnknown::new(DeviceType::COMPUTER),
+        device_type: EnumOrUnknown::new(match cfg!(target_os = "android") {
+            true => DeviceType::SMARTPHONE,
+            false => DeviceType::COMPUTER,
+        }),
         device_software_version: SEMVER.to_string(),
         spirc_version: SPOTIFY_SPIRC_VERSION.to_string(),
         client_id: session.client_id(),
