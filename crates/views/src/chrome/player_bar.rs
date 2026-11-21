@@ -671,36 +671,67 @@ impl Render for PlayerBar {
         });
 
         let content = match (stacked, layout) {
-            (true, _) => base
-                .flex_col()
-                .justify_center()
-                .gap_2()
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .w_full()
-                        .child(self.artwork(window, cx))
-                        .child(transport(&self.playback, false, cx)),
-                )
-                // A phone held upright has no room beside the transport, so the
-                // title gets a line of its own instead of disappearing.
-                .child(self.stacked_title(cx))
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_3()
-                        .w_full()
-                        .child(div().flex_1().min_w_0().child(seek))
-                        .child(buttons)
-                        .child(self.sound(
-                            Self::touch_volume(window, Volume::Slider(Self::volume_width(window))),
-                            cx,
-                        ))
-                        .child(self.fullscreen_button(cx)),
-                ),
+            (true, _) => {
+                let theme = *cx.theme();
+                let track = self.playback.read(cx).shown_track(cx);
+                let artist = track
+                    .as_ref()
+                    .map(|track| track.artists.clone())
+                    .unwrap_or_default();
+                let cover = theme.metrics.row;
+                base.flex()
+                    .items_center()
+                    .gap_3()
+                    // The cover, with the artist under it.
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .gap_1()
+                            .flex_none()
+                            .child(self.artwork(window, cx))
+                            .child(
+                                div()
+                                    .w(cover)
+                                    .text_color(theme.muted_foreground)
+                    .truncate()
+                                    .text_center()
+                                    .child(artist),
+                            ),
+                    )
+                    // Title, then the transport with the heart, then the timeline.
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .flex_1()
+                            .min_w_0()
+                            .child(self.stacked_title(cx))
+                            .child(
+                                div().flex().items_center().gap_2()
+                                    .child(transport(&self.playback, false, cx))
+                                    .child(like(track.as_ref(), &self.playback, cx)),
+                            )
+                            .child(self.timeline.clone()),
+                    )
+                    // Volume, the Sessions button, the fullscreen player.
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .items_end()
+                            .gap_1()
+                            .flex_none()
+                            .child(self.sound(
+                                Self::touch_volume(window, Volume::Slider(Self::volume_width(window))),
+                                cx,
+                            ))
+                            .child(self.sessions.clone())
+                            .child(self.fullscreen_button(cx)),
+                    )
+            }
             (false, PlayerBarLayout::Centered) => base
                 .items_center()
                 .py(theme.metrics.pad)
