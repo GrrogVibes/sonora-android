@@ -25,6 +25,11 @@
 ### A native, familiar music streaming client
 
 Stream from your favorite services and play local files — all in one **native** app.
+
+> **This fork runs Sonora on Android.** The desktop UI is unchanged; only the GPUI platform
+> backend is swapped for a vendored `gpui-mobile`, and the app ships as a `NativeActivity`
+> APK. See [ANDROID.md](./ANDROID.md) for what is ported, how to build it, and the
+> licences of the vendored backends.
 </div>
 
 <div align="center">

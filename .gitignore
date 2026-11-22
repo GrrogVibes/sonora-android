@@ -2,7 +2,6 @@
 /result
 /.claude
 /.direnv
-/vendor
 __pycache__/
 /.idea
 /flatpak/flatpak-repo
@@ -10,7 +9,16 @@ __pycache__/
 /flatpak/*.flatpak
 /flatpak/flatpak
 /.flatpak-builder
-vendor/gpui/
+
+# The vendored backends are part of the source: the Android port patches gpui and
+# ships gpui-mobile, so a clone has to build without fetching them. Their own
+# checkouts (nested .git dirs) and build dirs stay out.
+vendor/**/.git/
+vendor/**/target/
 android/app/src/main/jniLibs/
 android/app/build/
-android/app-release.apk
+android/build/
+android/.gradle/
+android/local.properties
+android/*.apk
+android/*.idsig
