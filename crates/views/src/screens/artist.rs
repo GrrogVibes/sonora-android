@@ -30,7 +30,7 @@ use crate::shared::album_grid::CardGrid;
 use crate::shared::cards::{self, ReleaseFilter};
 use crate::shared::confirm::Confirm;
 use crate::shared::cover_viewer::CoverViewer;
-use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
+use crate::shared::hero::{ACTION_GAP, HeroMetaStrip, HeroPlayButton, PageHero};
 use crate::shared::menus::{ItemMenu, artist_menu};
 use crate::shared::page;
 use crate::shared::picks::{Picks, Shape};
@@ -345,7 +345,7 @@ impl ArtistView {
         cx.notify();
     }
 
-    fn header(&self, cx: &Context<Self>) -> AnyElement {
+    fn header(&self, window: &Window, cx: &Context<Self>) -> AnyElement {
         let artist = self.detail.read(cx).artist();
         let title = artist
             .map(|artist| SharedString::from(artist.name.clone()))
@@ -360,34 +360,61 @@ impl ArtistView {
             let value = cells::count(count);
             t!("artist-followers", count = count, value = &value)
         });
-        let overflow = self.saved_artist(cx).map(|artist| {
+        // The overflow menu only exists while the artist is saved, so its buttons
+        // have somewhere to fold into. Shuffle and the heart fold from the right
+        // when the row runs out of room; Play and More always show, and on a phone
+        // that is what keeps the ellipsis on screen.
+        let play = HeroPlayButton::new(
+            "play-artist",
+            self.popular.as_ref().clone(),
+            self.playback.clone(),
+        )
+        .load_origin(self.playing_from(cx));
+        let shuffle = HeroPlayButton::shuffle(
+            "shuffle-artist",
+            self.popular.as_ref().clone(),
+            self.playback.clone(),
+        )
+        .load_origin(self.playing_from(cx));
+        let menu = self
+            .saved_artist(cx)
+            .map(|artist| artist_menu(artist, self.playback.clone(), true, cx));
+        let mut spare = match menu.is_some() {
+            true => {
+                let gap = ACTION_GAP.to_pixels(window.rem_size());
+                let step = Button::width(std::iter::empty::<SharedString>(), window) + gap;
+                let room = PageHero::room(self.width - cx.theme().metrics.inset * 2., window, cx);
+                ((room - play.width(window) - step) / step).floor().max(0.) as usize
+            }
+            false => usize::MAX,
+        };
+        let mut fits = || match spare {
+            0 => false,
+            _ => {
+                spare -= 1;
+                true
+            }
+        };
+        let (shuffle, folded) = match fits() {
+            true => (Some(shuffle), None),
+            false => (None, Some(shuffle.shuffle_item(cx))),
+        };
+        let favorite = self.favorite_button(cx).filter(|_| fits());
+        let overflow = menu.map(|menu| {
             Picker::icon("artist-overflow", &self.popovers, "icons/ellipsis.svg")
                 .tooltip("common-more")
                 .large()
                 .left()
-                .menu(artist_menu(artist, self.playback.clone(), true, cx))
+                .menu(menu.lead(folded.into_iter().collect::<Vec<_>>()))
         });
         let actions = div()
             .flex()
             .items_center()
+            .min_w_0()
             .gap_2()
-            .child(
-                HeroPlayButton::new(
-                    "play-artist",
-                    self.popular.as_ref().clone(),
-                    self.playback.clone(),
-                )
-                .load_origin(self.playing_from(cx)),
-            )
-            .child(
-                HeroPlayButton::shuffle(
-                    "shuffle-artist",
-                    self.popular.as_ref().clone(),
-                    self.playback.clone(),
-                )
-                .load_origin(self.playing_from(cx)),
-            )
-            .children(self.favorite_button(cx))
+            .child(play)
+            .children(shuffle)
+            .children(favorite)
             .children(overflow);
 
         let cover = artist.and_then(|artist| artist.cover_large.clone());
@@ -1332,7 +1359,7 @@ impl Render for ArtistView {
 
         let listed = self.mode == Mode::List;
         let release_padding = self.release_padding;
-        let head = self.header(cx);
+        let head = self.header(window, cx);
         let cover = theme.metrics.cover;
         let banner_shown = self
             .detail

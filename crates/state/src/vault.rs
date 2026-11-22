@@ -61,7 +61,22 @@ pub(crate) fn unlock(vault: Arc<Vault>, cx: &mut App) -> Task<()> {
 /// moved into the keychain. Any other keychain error is taken as passing, so with no key file
 /// the vault stays locked rather than sealing tracks under a key the next launch will not find.
 async fn master(vault: &Arc<Vault>, cx: &mut AsyncApp) -> Result<Vec<u8>> {
+    // Android's platform credential store is an in-process map (see
+    // `AndroidCredentialStore` in gpui-mobile), so a key left there dies with
+    // the process: every download sealed under it is unreadable after a restart,
+    // which is exactly how offline playback would fail. Keep the key in a file
+    // the app owns instead, the way a desktop with no keychain does.
+    #[cfg(target_os = "android")]
+    {
+        return match cx.background_spawn(async { from_file() }).await? {
+            Some(master) => Ok(master),
+            None => fresh(vault, false, cx).await,
+        };
+    }
+
+    #[cfg(not(target_os = "android"))]
     let read = cx.update(|cx| cx.read_credentials(KEYCHAIN_URL)).await;
+    #[cfg(not(target_os = "android"))]
     match read {
         Ok(Some((_, master))) if master.len() == MASTER => Ok(master),
         Ok(Some(_)) => bail!("the keychain holds a key of the wrong length"),

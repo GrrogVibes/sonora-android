@@ -178,9 +178,14 @@ public class SonoraMediaService extends Service {
             focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                     .setAudioAttributes(attributes)
                     .setOnAudioFocusChangeListener(change -> {
+                        // LOSS and TRANSIENT stop playback: another app has the
+                        // stream for good, or for long enough. CAN_DUCK is the
+                        // short case — a notification, a navigation prompt — and
+                        // pausing on it is what made the music stop whenever the
+                        // phone made a sound; ducking here would be the textbook
+                        // answer, but not stopping is what the listener asked for.
                         if (change == AudioManager.AUDIOFOCUS_LOSS
-                                || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-                                || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+                                || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
                             nativeMediaAction(MEDIA_PAUSE);
                         }
                     })
