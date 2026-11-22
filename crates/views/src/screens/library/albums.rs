@@ -476,11 +476,8 @@ fn year(album: &Album) -> String {
     }
 }
 
-/// Whether an album was downloaded whole, or is on its way.
+/// Whether an album was downloaded whole, or has a track that was downloaded.
 fn downloaded(id: &str, cx: &App) -> bool {
-    Sonora::global(cx)
-        .downloads
-        .read(cx)
-        .set(Collection::Album, id)
-        .is_some()
+    let downloads = Sonora::global(cx).downloads.read(cx);
+    downloads.set(Collection::Album, id).is_some() || downloads.holds_album(id)
 }

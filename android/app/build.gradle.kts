@@ -13,8 +13,8 @@ android {
         applicationId = "org.sonora"
         minSdk = 26          // Vulkan 1.0 is mandatory from API 26+
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.50.3"
+        versionCode = 2
+        versionName = "0.50.3.1"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

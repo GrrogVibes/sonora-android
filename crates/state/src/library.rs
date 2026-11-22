@@ -9,13 +9,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use gpui::{App, Context, Entity, SharedString, Task};
 use music::{
     Album, Arrival, Catalog, ImportedPlaylist, MediaKind, MusicApi, Page, Pages, Playlist,
-    SavedArtist, Shape, Track,
+    ReleaseType, SavedArtist, Shape, Track,
 };
 use tokio::sync::{Semaphore, oneshot};
 
 use crate::snapshot::{Kind, Remembered, Snapshots};
 use crate::{
-    Io, Network, Outcome, Session, SessionEvent, SessionState, Target, Toast, Toasts, join, mosaic,
+    Downloads, DownloadsChanged, Io, Network, Outcome, Session, SessionEvent, SessionState,
+    Target, Toast, Toasts, join, mosaic,
 };
 
 const FATAL: [LibraryPart; 3] = [
@@ -1182,6 +1183,27 @@ pub struct Ready {
     pub problems: Vec<Problem>,
 }
 
+/// The album a downloaded track belongs to, as far as the track itself says. A download the
+/// provider's favorites never listed has no album page behind it, so the library row is built
+/// from the track: the cover it carries, the name and the credits, and no year.
+fn album_of(track: &Track) -> Album {
+    Album {
+        id: track.album_id.clone().unwrap_or_default(),
+        name: track.album.clone(),
+        artists: track.album_artist.clone(),
+        artist_refs: track.artist_refs.clone(),
+        cover: track.cover.clone(),
+        cover_large: track.cover.clone(),
+        release_type: ReleaseType::Album,
+        year: 0,
+        track_count: 0,
+        release_date: String::new(),
+        label: String::new(),
+        copyrights: Vec::new(),
+        added_at: None,
+    }
+}
+
 /// One list a shelf holds. A snapshot write shares it instead of copying every row, and a
 /// change made while such a write still holds the list copies it once first.
 pub struct Rows<T>(Arc<Vec<T>>);
@@ -1264,6 +1286,10 @@ impl gpui::EventEmitter<LibraryEvent> for Library {}
 pub struct Library {
     shelves: [Held; 2],
     session: Entity<Session>,
+    /// The downloads, whose tracks a favorite-only streaming library never lists. The streaming
+    /// shelf takes them from here, so a library page and offline mode show a downloaded track
+    /// whether or not it is a favorite.
+    downloads: Entity<Downloads>,
     io: Io,
     playlist_task: Option<Task<()>>,
     /// Reads the streaming playlists again after one changed elsewhere, without the rest of
@@ -1311,10 +1337,17 @@ pub struct Library {
 impl Library {
     pub fn new(
         session: Entity<Session>,
+        downloads: Entity<Downloads>,
         io: Io,
         cache: storage::Cache,
         cx: &mut Context<Self>,
     ) -> Self {
+        // A finished download, a removal and a restore all change what the streaming shelf holds,
+        // since the shelf takes the downloads the provider's favorites never listed.
+        cx.subscribe(&downloads, |this, _, _: &DownloadsChanged, cx| {
+            this.adopt_downloads(cx);
+        })
+        .detach();
         cx.subscribe(&session, |this, session, event, cx| match event {
             SessionEvent::SignedIn => {
                 this.epochs[Shelf::Streaming.slot()] += 1;
@@ -1405,6 +1438,7 @@ impl Library {
                 Held::empty(Shape::Catalog(Catalog::Fixed)),
             ],
             session,
+            downloads,
             io,
             playlist_task: None,
             relisting: None,
@@ -1441,6 +1475,53 @@ impl Library {
             false => library.prime(Shelf::Local, cx),
         }
         library
+    }
+
+    /// Adds the downloaded tracks a favorite-only streaming library never lists to the streaming
+    /// shelf, so the Downloaded filter and offline mode show every download, favorite or not. The
+    /// provider's own favorites stay at the front; a download already listed is not repeated.
+    fn adopt_downloads(&mut self, cx: &mut Context<Self>) {
+        // The downloads are read before the shelf is taken, since taking it borrows the library.
+        // Only a finished download belongs on the page; a running one is still on its way.
+        let downloads = self.downloads.read(cx);
+        let kept: HashMap<String, Track> = downloads
+            .kept()
+            .iter()
+            .filter(|(id, _)| downloads.has(id))
+            .map(|(id, track)| (id.clone(), track.clone()))
+            .collect();
+        if kept.is_empty() {
+            return;
+        }
+        let Some(ready) = self.held_mut(Shelf::Streaming).ready_mut() else {
+            return;
+        };
+        let known: HashSet<&str> = ready
+            .tracks
+            .iter()
+            .filter_map(|track| track.id.as_deref())
+            .collect();
+        let mut tracks = Vec::new();
+        let mut albums: Vec<(String, Album)> = Vec::new();
+        for (id, track) in kept {
+            if known.contains(id.as_str()) {
+                continue;
+            }
+            tracks.push(track.clone());
+            if let Some(album_id) = track.album_id.as_deref() {
+                let listed = ready.albums.iter().any(|album| album.id == album_id)
+                    || albums.iter().any(|(known_id, _)| known_id == album_id);
+                if !listed {
+                    albums.push((album_id.to_owned(), album_of(&track)));
+                }
+            }
+        }
+        if tracks.is_empty() && albums.is_empty() {
+            return;
+        }
+        ready.tracks.extend(tracks);
+        ready.albums.extend(albums.into_iter().map(|(_, album)| album));
+        cx.notify();
     }
 
     /// Puts the last run's rows on a shelf while this run's are still on their way, so a launch
@@ -1516,6 +1597,9 @@ impl Library {
                     problems: Vec::new(),
                 });
                 cx.notify();
+                // The snapshot holds the favorites; a download the favorites never listed still
+                // belongs on the shelf.
+                this.adopt_downloads(cx);
             })
             .ok();
         }));
@@ -3918,6 +4002,9 @@ impl Library {
             if shelf == Shelf::Streaming {
                 self.build_mosaics(cx);
             }
+        }
+        if shelf == Shelf::Streaming {
+            self.adopt_downloads(cx);
         }
         cx.notify();
     }

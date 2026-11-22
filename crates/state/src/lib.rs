@@ -308,7 +308,6 @@ pub fn init(
     })
     .detach();
     let cache = storage::Cache::standard();
-    let library = cx.new(|cx| Library::new(session.clone(), io.clone(), cache, cx));
     let queue = cx.new(|cx| Queue::new(session.clone(), settings.clone(), cx));
     // Playback starts no engine until a provider is up, so the saved device is handed over
     // before any stream opens.
@@ -342,6 +341,9 @@ pub fn init(
             cx,
         )
     });
+    // The library takes the downloads the provider's favorites never listed, so it is built
+    // after them.
+    let library = cx.new(|cx| Library::new(session.clone(), downloads.clone(), io.clone(), cache, cx));
     equalizer.update(cx, |equalizer, cx| {
         equalizer.follow(&playback, &outputs, cx)
     });

@@ -71,6 +71,7 @@ const SCHEMA: &str = "
         single INTEGER NOT NULL,
         done INTEGER NOT NULL,
         added_at INTEGER NOT NULL,
+        value TEXT,
         PRIMARY KEY (provider, track_id)
     );
     CREATE TABLE IF NOT EXISTS downloaded_sets (

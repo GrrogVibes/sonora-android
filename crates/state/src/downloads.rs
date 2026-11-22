@@ -197,6 +197,10 @@ pub struct Downloads {
     sets: HashMap<(Collection, String), Set>,
     /// The songs picked one by one this run, so the list of running downloads can name them.
     songs: HashMap<String, Track>,
+    /// Every downloaded track by id, with its own metadata, so a library page can show a
+    /// download the provider's favorites never listed. Kept beside `songs` and the sets because
+    /// a favorite-only library holds none of the rest.
+    kept: HashMap<String, Track>,
     queue: VecDeque<String>,
     /// The downloads under way, each with how far it has got.
     running: HashMap<String, Running>,
@@ -286,6 +290,7 @@ impl Downloads {
             tracks: HashMap::new(),
             sets: HashMap::new(),
             songs: HashMap::new(),
+            kept: HashMap::new(),
             queue: VecDeque::new(),
             running: HashMap::new(),
             abandoned: HashMap::new(),
@@ -326,6 +331,20 @@ impl Downloads {
     /// Whether a track is downloaded and plays with no network.
     pub fn has(&self, id: &str) -> bool {
         self.tracks.get(id).is_some_and(|entry| entry.done)
+    }
+
+    /// Every downloaded track by id, with its own metadata. A library whose provider lists only
+    /// its favorites holds none of the rest, so the pages take them from here.
+    pub fn kept(&self) -> &HashMap<String, Track> {
+        &self.kept
+    }
+
+    /// Whether a finished download belongs to album `id`, so an album with a single downloaded
+    /// track is listed too, not only one downloaded whole.
+    pub fn holds_album(&self, album_id: &str) -> bool {
+        self.kept.iter().any(|(id, track)| {
+            track.album_id.as_deref() == Some(album_id) && self.has(id)
+        })
     }
 
     /// Where a downloaded album or playlist stands, taken from the tracks in it that can be
@@ -764,6 +783,7 @@ impl Downloads {
     pub fn remove_all(&mut self, cx: &mut Context<Self>) {
         self.tracks.clear();
         self.sets.clear();
+        self.kept.clear();
         self.queue.clear();
         for (_, run) in self.running.drain() {
             self.abandoned.insert(run.serial, run.task);
@@ -859,12 +879,16 @@ impl Downloads {
         set: Option<(Collection, String, Set)>,
         tracks: Vec<Track>,
     ) {
-        let rows: Vec<(String, bool)> = tracks
+        let rows: Vec<(String, bool, Option<String>)> = tracks
             .into_iter()
             .filter_map(|track| {
-                let id = track.id?;
+                let id = track.id.clone()?;
                 let entry = self.tracks.get(&id)?;
-                Some((id, entry.single))
+                // The track itself is stored, so a library page can show the download without
+                // asking the provider — a favorite-only library never lists it at all.
+                let value = serde_json::to_string(&track).ok();
+                self.kept.insert(id.clone(), track);
+                Some((id, entry.single, value))
             })
             .collect();
         self.write(move |store| {
@@ -1128,6 +1152,7 @@ impl Downloads {
         let playback = self.playback.read(cx);
         for id in ids {
             self.tracks.remove(id);
+            self.kept.remove(id);
             if let Some(run) = self.running.remove(id) {
                 self.abandoned.insert(run.serial, run.task);
             }
@@ -1198,7 +1223,7 @@ impl Downloads {
                     return;
                 }
                 match restored {
-                    Ok(Restored { tracks, sets }) => {
+                    Ok(Restored { tracks, sets, kept }) => {
                         for (id, single, done) in tracks {
                             if !done && !this.queue.contains(&id) {
                                 this.queue.push_back(id.clone());
@@ -1207,6 +1232,9 @@ impl Downloads {
                         }
                         for (kind, id, set) in sets {
                             this.sets.entry((kind, id)).or_insert(set);
+                        }
+                        for (id, track) in kept {
+                            this.kept.insert(id, track);
                         }
                     }
                     Err(error) => log::warn!("downloads: cannot read the list: {error:#}"),
@@ -1225,6 +1253,7 @@ impl Downloads {
         self.provider = None;
         self.tracks.clear();
         self.sets.clear();
+        self.kept.clear();
         self.queue.clear();
         self.running.clear();
         self.abandoned.clear();
@@ -1306,6 +1335,7 @@ fn downloadable(track: &Track) -> bool {
 struct Restored {
     tracks: Vec<(String, bool, bool)>,
     sets: Vec<(Collection, String, Set)>,
+    kept: Vec<(String, Track)>,
 }
 
 #[derive(Clone)]
@@ -1315,26 +1345,49 @@ struct Store {
 
 impl Store {
     fn open(&self) -> Result<Connection> {
-        self.database
+        let connection = self
+            .database
             .open()
-            .context("cannot open the downloads list")
+            .context("cannot open the downloads list")?;
+        // The `value` column holds the track itself. A table written before it existed has no
+        // such column, and `CREATE TABLE IF NOT EXISTS` leaves it as it is, so add it once.
+        let has_value = connection
+            .prepare("PRAGMA table_info(downloads)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|column| column == "value");
+        if !has_value {
+            connection.execute_batch("ALTER TABLE downloads ADD COLUMN value TEXT")?;
+        }
+        Ok(connection)
     }
 
     fn restore(&self, provider: &str) -> Result<Restored> {
         let connection = self.open()?;
         let mut statement = connection.prepare(
-            "SELECT track_id, single, done FROM downloads WHERE provider = ? ORDER BY added_at",
+            "SELECT track_id, single, done, value FROM downloads WHERE provider = ? ORDER BY added_at",
         )?;
-        let tracks = statement
+        let rows: Vec<(String, bool, bool, Option<String>)> = statement
             .query_map(params![provider], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, bool>(1)?,
                     row.get::<_, bool>(2)?,
+                    row.get::<_, Option<String>>(3)?,
                 ))
             })?
             .filter_map(Result::ok)
             .collect();
+        let mut tracks = Vec::new();
+        let mut kept = Vec::new();
+        for (id, single, done, value) in rows {
+            tracks.push((id.clone(), single, done));
+            if let Some(value) = value
+                && let Ok(track) = serde_json::from_str::<Track>(&value)
+            {
+                kept.push((id, track));
+            }
+        }
         let mut statement = connection.prepare(
             "SELECT kind, set_id, value FROM downloaded_sets WHERE provider = ? ORDER BY added_at",
         )?;
@@ -1357,20 +1410,21 @@ impl Store {
                 Some((kind, id, set))
             })
             .collect();
-        Ok(Restored { tracks, sets })
+        Ok(Restored { tracks, sets, kept })
     }
 
-    fn enlist(&self, provider: &str, rows: &[(String, bool)]) -> Result<()> {
+    fn enlist(&self, provider: &str, rows: &[(String, bool, Option<String>)]) -> Result<()> {
         let mut connection = self.open()?;
         let transaction = connection.transaction()?;
         let now = now();
-        for (id, single) in rows {
+        for (id, single, value) in rows {
             transaction.execute(
-                "INSERT INTO downloads (provider, track_id, single, done, added_at)
-                 VALUES (?1, ?2, ?3, 0, ?4)
+                "INSERT INTO downloads (provider, track_id, single, done, added_at, value)
+                 VALUES (?1, ?2, ?3, 0, ?4, ?5)
                  ON CONFLICT (provider, track_id)
-                 DO UPDATE SET single = single OR excluded.single",
-                params![provider, id, single, now],
+                 DO UPDATE SET single = single OR excluded.single,
+                                value = COALESCE(excluded.value, value)",
+                params![provider, id, single, now, value],
             )?;
         }
         transaction.commit()?;
