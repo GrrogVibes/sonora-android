@@ -29,7 +29,9 @@ echo "== gradle =="
 gradle -p android --no-daemon assembleRelease
 
 echo "== sign =="
-KEYSTORE="${SONORA_KEYSTORE:-/root/.android/debug.keystore}"
+# Use $HOME so this works both in the sandbox (/root) and on a GitHub runner
+# (the runner user cannot create /root/.android). CI can also set SONORA_KEYSTORE.
+KEYSTORE="${SONORA_KEYSTORE:-$HOME/.android/debug.keystore}"
 if [ ! -f "$KEYSTORE" ]; then
     mkdir -p "$(dirname "$KEYSTORE")"
     keytool -genkeypair -keystore "$KEYSTORE" -storepass android \
@@ -38,7 +40,7 @@ if [ ! -f "$KEYSTORE" ]; then
 fi
 "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
     --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android \
-    --out "android/SonoraDroid0.50.3.1.apk" \
+    --out "android/SonoraDroid0.50.3.2.apk" \
     android/app/build/outputs/apk/release/app-release-unsigned.apk
 
-ls -la android/SonoraDroid0.50.3.1.apk
+ls -la android/SonoraDroid0.50.3.2.apk

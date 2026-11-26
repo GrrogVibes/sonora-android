@@ -8,7 +8,7 @@ Android-only code is behind `#[cfg(target_os = "android")]`.
 - **Upstream:** [sonorahq/sonora](https://github.com/sonorahq/sonora) (v0.50.3, `1cb2c2c`)
 - **Vendored backend:** `vendor/gpui-mobile` (from `itsbalamurali/gpui-mobile`, patched)
 - **GPUI fork:** `vendor/gpui` (`sonorahq/gpui`)
-- **APK:** `android/SonoraDroid0.50.3.1.apk`, `org.sonora`, arm64-v8a, minSdk 26
+- **APK:** `android/SonoraDroid0.50.3.2.apk`, `org.sonora`, arm64-v8a, minSdk 26
 
 ## What is ported
 
@@ -31,7 +31,7 @@ The environment is recorded in [`TOOLCHAIN.md`](./TOOLCHAIN.md). The short versi
 android/build-apk.sh         # cargo ndk → jniLibs → Gradle → debug sign
 ```
 
-The script produces `android/SonoraDroid0.50.3.1.apk`. Two things it does that a naive
+The script produces `android/SonoraDroid0.50.3.2.apk`. Two things it does that a naive
 build misses: it deletes the copied `libgpui_mobile.so` (it is statically linked into
 `libsonora.so`), and it copies `libc++_shared.so` from the NDK sysroot (the Widevine CDM
 shim is C++ and would otherwise fail to `dlopen`).

@@ -60,6 +60,7 @@ public class SonoraMediaService extends Service {
     private String artist = "";
     private String album = "";
     private String cover = "";
+    private String loadedCover = null;
     private Bitmap coverBitmap;
     private boolean playing;
     private long position;
@@ -202,6 +203,11 @@ public class SonoraMediaService extends Service {
     }
 
     private void showNotification() {
+        // The artwork has to be in the session as well as the notification: the
+        // media-style notification reads its art from the session metadata, and
+        // the lockscreen transport does too. Re-publishing here means the cover
+        // arrives even though it is fetched after the first metadata push.
+        session.setMetadata(metadata());
         Notification notification = builder().build();
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIFICATION_ID, notification,
@@ -264,32 +270,61 @@ public class SonoraMediaService extends Service {
     }
 
     private MediaMetadataCompat metadata() {
-        return new MediaMetadataCompat.Builder()
+        MediaMetadataCompat.Builder meta = new MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, album)
-                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration)
-                .build();
+                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration);
+        // METADATA_KEY_ART is what the media notification and the lockscreen
+        // render; setLargeIcon alone is not enough on current Android.
+        if (coverBitmap != null) {
+            meta.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, coverBitmap);
+        }
+        return meta.build();
     }
 
     /** Covers are fetched off the UI thread; a failure just leaves the icon out. */
     private void loadCover() {
-        if (cover == null || cover.isEmpty() || !cover.startsWith("http")) {
+        if (cover == null || cover.isEmpty()) {
+            // No cover — clear any stale bitmap from a previous track.
+            loadedCover = null;
+            if (coverBitmap != null) {
+                coverBitmap = null;
+                showNotification();
+            }
             return;
         }
-        final String url = cover;
+        // Skip re-loading the same cover on every metadata update.
+        if (cover.equals(loadedCover) && coverBitmap != null) {
+            return;
+        }
+        loadedCover = cover;
+        final String source = cover;
         new Thread(() -> {
             try {
-                Bitmap bitmap = BitmapFactory.decodeStream(
-                        new URL(url).openConnection().getInputStream());
+                Bitmap bitmap = decodeCover(source);
                 if (bitmap != null && current == this) {
                     coverBitmap = bitmap;
+                    showNotification();
+                } else if (current == this) {
+                    // Decode failed — clear the stale bitmap so we don't show an old cover.
+                    coverBitmap = null;
                     showNotification();
                 }
             } catch (Exception ignored) {
                 // No cover is not worth a crash or a retry loop.
             }
         }).start();
+    }
+
+    /** Decodes a cover from an http(s) URL, a file:// URI, or a plain path. */
+    private Bitmap decodeCover(String source) throws Exception {
+        if (source.startsWith("http://") || source.startsWith("https://")) {
+            return BitmapFactory.decodeStream(new URL(source).openConnection().getInputStream());
+        }
+        // file:///path/to/cover.jpg → /path/to/cover.jpg (strip "file://" prefix)
+        String path = source.startsWith("file://") ? source.substring(7) : source;
+        return BitmapFactory.decodeFile(path);
     }
 
     private static String or(String value) {
