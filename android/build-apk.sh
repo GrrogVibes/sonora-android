@@ -40,7 +40,7 @@ if [ ! -f "$KEYSTORE" ]; then
 fi
 "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
     --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android \
-    --out "android/SonoraDroid0.50.3.2.apk" \
+    --out "android/SonoraDroid0.50.3.3.apk" \
     android/app/build/outputs/apk/release/app-release-unsigned.apk
 
-ls -la android/SonoraDroid0.50.3.2.apk
+ls -la android/SonoraDroid0.50.3.3.apk

@@ -11,15 +11,15 @@ backend** is swapped for a vendored [`gpui-mobile`](vendor/gpui-mobile), and the
 - **Upstream:** [sonorahq/sonora](https://github.com/sonorahq/sonora) (v0.50.3, `1cb2c2c`)
 - **Vendored backend:** `vendor/gpui-mobile` (from `itsbalamurali/gpui-mobile`, patched)
 - **GPUI fork:** `vendor/gpui` (`sonorahq/gpui`)
-- **APK:** `SonoraDroid0.50.3.2.apk`, package `org.sonora`, arm64-v8a, minSdk 26
+- **APK:** `SonoraDroid0.50.3.3.apk`, package `org.sonora`, arm64-v8a, minSdk 26
 
 ## Download
 
-The APK is attached to the [releases](../../releases) page. Grab `SonoraDroid0.50.3.2.apk` and
+The APK is attached to the [releases](../../releases) page. Grab `SonoraDroid0.50.3.3.apk` and
 install it:
 
 ```sh
-adb install -r SonoraDroid0.50.3.2.apk
+adb install -r SonoraDroid0.50.3.3.apk
 ```
 
 It is debug-signed (no release keystore), so you may need to allow installs from unknown sources.
@@ -46,7 +46,7 @@ The environment is recorded in [`TOOLCHAIN.md`](./TOOLCHAIN.md). The short versi
 android/build-apk.sh         # cargo ndk → jniLibs → Gradle → debug sign
 ```
 
-The script produces `android/SonoraDroid0.50.3.2.apk`. Two things it does that a naive build
+The script produces `android/SonoraDroid0.50.3.3.apk`. Two things it does that a naive build
 misses: it deletes the copied `libgpui_mobile.so` (it is statically linked into `libsonora.so`),
 and it copies `libc++_shared.so` from the NDK sysroot (the Widevine CDM shim is C++ and would
 otherwise fail to `dlopen`).

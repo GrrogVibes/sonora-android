@@ -15,7 +15,10 @@ fn android_main(app: android_activity::AndroidApp) {
     // Logcat first, so everything after this is visible.
     android_logger::init_once(
         android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Info)
+            // Debug, not Info: the snapshot-restore and memory-footprint lines that explain a
+            // cold-start OOM are logged at debug. With Info they are invisible in logcat, which
+            // leaves an immediate-close report undiagnosable.
+            .with_max_level(log::LevelFilter::Debug)
             .with_tag("sonora"),
     );
     gpui_mobile::android::jni::install_panic_hook();
@@ -30,6 +33,18 @@ fn android_main(app: android_activity::AndroidApp) {
     };
 
     publish_android_dirs();
+
+    // The size of cache.sqlite at launch is the single most useful fact for a
+    // cold-start close: the library snapshots in it are deserialized eagerly on
+    // startup, and a many-MB file on a low-memory phone is an OOM kill, which
+    // leaves no Rust panic to log. Log it before anything reads the file.
+    if let Some(dir) = dirs::cache_dir() {
+        let path = dir.join("sonora").join("cache.sqlite");
+        match std::fs::metadata(&path) {
+            Ok(meta) => log::info!("android: cache.sqlite is {} bytes at startup", meta.len()),
+            Err(error) => log::debug!("android: no cache.sqlite yet ({error})"),
+        }
+    }
 
     // reqwest 0.13 verifies TLS through `rustls-platform-verifier`, which on
     // Android must be given the JVM before any request runs; without it the

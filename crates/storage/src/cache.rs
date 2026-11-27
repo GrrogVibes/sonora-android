@@ -146,9 +146,77 @@ impl Cache {
             .context("cannot trim cached lyrics")?;
         transaction.commit().context("cannot save cached lyrics")
     }
-    /// A connection with every cache table in place. The local scan index reaches for this
-    /// directly, the way local playlists do with [`crate::Database`].
+    /// The cache is refetchable by definition (see the module docs). A database that cannot
+    /// be prepared — a truncated file, a bad header, or one left half-written by a full disk —
+    /// must never keep the app from starting, so move it aside and open a fresh one once.
+    /// The main [`crate::Database`] deliberately has no such recovery: it holds favorites and
+    /// playlists that cannot be fetched again.
     pub fn open(&self) -> Result<rusqlite::Connection> {
-        crate::connect(&self.path, SCHEMA, &self.ready, "the cache")
+        match super::connect(&self.path, SCHEMA, &self.ready, "the cache") {
+            Ok(connection) => Ok(connection),
+            Err(error) => {
+                if self.path.exists() {
+                    let quarantine = self.path.with_extension("sqlite.bad");
+                    let _ = std::fs::remove_file(&quarantine);
+                    match std::fs::rename(&self.path, &quarantine) {
+                        Ok(()) => {
+                            log::warn!(
+                                "cache: quarantined an invalid {} as {}; refetching",
+                                self.path.display(),
+                                quarantine.display()
+                            );
+                            *self
+                                .ready
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner) = false;
+                        }
+                        Err(rename) => {
+                            log::warn!("cache: cannot quarantine {}: {rename}", self.path.display())
+                        }
+                    }
+                }
+                super::connect(&self.path, SCHEMA, &self.ready, "the cache")
+                    .with_context(|| format!("cannot recover the cache: {error:#}"))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_corrupt_cache_file_does_not_stop_startup() {
+        let dir = std::env::temp_dir().join(format!(
+            "sonora-cache-recovery-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("cache.sqlite");
+        // A truncated or otherwise invalid database: `Connection::open` succeeds, but the
+        // first statement fails with "file is not a database".
+        std::fs::write(&path, b"not a sqlite database at all").unwrap();
+
+        let cache = Cache::at(path.clone());
+        assert!(
+            cache.open().is_ok(),
+            "a bad cache file must never abort startup"
+        );
+        assert!(
+            cache
+                .read("anything", |text| text.to_owned())
+                .unwrap()
+                .is_none(),
+            "the recovered cache must be usable"
+        );
+        assert!(path.exists(), "a fresh cache should have been created");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
