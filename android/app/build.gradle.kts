@@ -17,7 +17,10 @@ android {
         versionName = "0.50.3.3"
 
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            // Production is arm64-only; `-Psonora.abi=x86_64` builds an emulator-only APK.
+            abiFilters += listOf(
+                (project.findProperty("sonora.abi") as String?) ?: "arm64-v8a"
+            )
         }
 
         manifestPlaceholders["nativeLibraryName"] = "sonora"

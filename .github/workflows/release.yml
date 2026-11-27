@@ -91,7 +91,10 @@ jobs:
           set -euo pipefail
           apk=$(ls android/SonoraDroid*.apk)
           test -s "$apk"
-          echo "$apk" | grep -q '0.50.3.2'
+          # Read the expected version from the build file so this check cannot go
+          # stale on the next bump (it previously hard-coded 0.50.3.2).
+          expected=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' android/app/build.gradle.kts)
+          echo "$apk" | grep -q "$expected"
           echo "Built $apk ($(du -h "$apk" | cut -f1))"
 
       - uses: actions/upload-artifact@v7
